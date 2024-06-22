@@ -46,7 +46,7 @@ contract ERC20PresetMinterPauser is
         address from,
         address to,
         uint256 value
-    ) internal override(ERC20, ERC20Pausable) {
+    ) internal virtual override(ERC20, ERC20Pausable) {
         super._update(from, to, value);
     }
 }

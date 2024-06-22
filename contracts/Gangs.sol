@@ -3,10 +3,9 @@ pragma solidity >=0.8.19;
 
 import "./Entity.sol";
 import "./interfaces/ILocationController.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-contract Gangs is Entity, Ownable {
+contract Gangs is Entity {
     using EnumerableSet for EnumerableSet.UintSet;
 
     //Names are a uint16 number representing a word on seperate wordlists.
@@ -77,7 +76,7 @@ contract Gangs is Entity, Ownable {
         uint16 _gangNameWord1OptionsMax,
         uint16 _gangNameWord2OptionsMax,
         uint16 _gangNameWord3OptionsMax
-    ) external onlyOwner {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         gangNameWord1OptionsMax = _gangNameWord1OptionsMax;
         gangNameWord2OptionsMax = _gangNameWord2OptionsMax;
         gangNameWord3OptionsMax = _gangNameWord3OptionsMax;

@@ -40,7 +40,7 @@ contract LocationBase is ILocation, AccessControlEnumerable {
     //Only callable by LOCATION_CONTROLLER
     function LOCATION_CONTROLLER_onArrival(
         IERC721 _entity,
-        uint256 _entityId,
+        uint256, // _entityId,
         ILocation _from
     ) external virtual {
         require(msg.sender == address(locationController), "Sender must be LC");
@@ -51,7 +51,7 @@ contract LocationBase is ILocation, AccessControlEnumerable {
     //Only callable by LOCATION_CONTROLLER
     function LOCATION_CONTROLLER_onDeparture(
         IERC721 _entity,
-        uint256 _entityId,
+        uint256, // _entityId,
         ILocation _to
     ) external virtual {
         require(msg.sender == address(locationController), "Sender must be LC");

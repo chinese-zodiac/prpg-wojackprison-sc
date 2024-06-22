@@ -50,8 +50,8 @@ contract JsonNftTemplate is
         string memory _name,
         string memory _symbol
     ) ERC721(_name, _symbol) {
-        _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
-        _setupRole(MANAGER_ROLE, _msgSender());
+        _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
+        _grantRole(MANAGER_ROLE, _msgSender());
     }
 
     /**
@@ -102,7 +102,7 @@ contract JsonNftTemplate is
     ) public {
         for (uint i = tokenIdStart; i < tokenIdEnd; i++) {
             require(
-                _isApprovedOrOwner(_msgSender(), i),
+                _isAuthorized(_ownerOf(i), _msgSender(), i),
                 "JNT: batch transfer caller is not owner nor approved"
             );
             _transfer(_msgSender(), to, i);
@@ -115,18 +115,12 @@ contract JsonNftTemplate is
     function tokenURI(
         uint256 tokenId
     ) public view virtual override returns (string memory) {
-        require(_exists(tokenId), "JNT: URI query for nonexistent token");
+        require(
+            _ownerOf(tokenId) != address(0x0),
+            "JNT: URI query for nonexistent token"
+        );
 
         return string(abi.encodePacked("ipfs://", jsonIpfsHash[tokenId]));
-    }
-
-    function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 tokenId,
-        uint256 batchSize
-    ) internal virtual override(ERC721, ERC721Enumerable) {
-        super._beforeTokenTransfer(from, to, tokenId, batchSize);
     }
 
     /**
@@ -142,5 +136,25 @@ contract JsonNftTemplate is
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
+    }
+
+    function _increaseBalance(
+        address account,
+        uint128 amount
+    ) internal virtual override(ERC721, ERC721Enumerable) {
+        ERC721Enumerable._increaseBalance(account, amount);
+    }
+
+    function _update(
+        address to,
+        uint256 tokenId,
+        address auth
+    )
+        internal
+        virtual
+        override(ERC721, ERC721Enumerable)
+        returns (address previousOwner)
+    {
+        return ERC721Enumerable._update(to, tokenId, auth);
     }
 }

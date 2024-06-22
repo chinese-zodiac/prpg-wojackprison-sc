@@ -37,7 +37,7 @@ contract TokenBase is ERC20PresetMinterPauser, IERC20MetadataLogo {
         );
     }
 
-    function _transfer(
+    function _update(
         address sender,
         address recipient,
         uint256 amount
@@ -54,7 +54,7 @@ contract TokenBase is ERC20PresetMinterPauser, IERC20MetadataLogo {
             (sender != address(ammCzusdPair) &&
                 recipient != address(ammCzusdPair))
         ) {
-            super._transfer(sender, recipient, amount);
+            super._update(sender, recipient, amount);
         } else {
             uint256 totalBurnFee;
             //sell fee
@@ -66,7 +66,7 @@ contract TokenBase is ERC20PresetMinterPauser, IERC20MetadataLogo {
                 totalBurnFee += (amount * buyBurnBps) / 10000;
             }
             if (totalBurnFee > 0) super._burn(sender, totalBurnFee);
-            super._transfer(sender, recipient, amount - totalBurnFee);
+            super._update(sender, recipient, amount - totalBurnFee);
         }
     }
 

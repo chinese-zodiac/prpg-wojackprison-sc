@@ -13,7 +13,7 @@ contract RngHistoryMock {
     function requestRandomWord() external payable {}
 
     function getAtOrAfterTimestamp(
-        uint64 timestamp
+        uint64 // timestamp
     ) external view returns (uint256) {
         return lastRequest;
     }
