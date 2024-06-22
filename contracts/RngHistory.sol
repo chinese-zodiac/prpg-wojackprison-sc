@@ -2,8 +2,8 @@
 pragma solidity >=0.8.19;
 
 import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
-import "@chainlink/contracts/src/v0.8/VRFV2WrapperConsumerBase.sol";
-import "@chainlink/contracts/src/v0.8/interfaces/AggregatorInterface.sol";
+import "@chainlink/VRFV2WrapperConsumerBase.sol";
+import "@chainlink/interfaces/AggregatorInterface.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
