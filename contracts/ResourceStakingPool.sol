@@ -42,13 +42,10 @@ contract ResourceStakingPool is Ownable {
         TokenBase _rewardToken,
         uint256 _rewardPerSecond,
         address _admin
-    ) {
+    ) Ownable(_admin) {
         rewardToken = _rewardToken;
         rewardPerSecond = _rewardPerSecond;
         timestampLast = block.timestamp;
-
-        // Transfer ownership to the admin address who becomes owner of the contract
-        transferOwnership(_admin);
 
         PRECISION_FACTOR = uint256(
             10 **
