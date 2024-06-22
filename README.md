@@ -1,13 +1,14 @@
-# Sample Hardhat Project
+# Wojack Prison, a blockchain game running on the PRPG Engine.
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a script that deploys that contract.
+Foundry project for Wojack Prison smart contracts. To contribute, message t.me/ceramicfingers on telegram.
 
-Try running some of the following tasks:
+# TODO
 
-```shell
-npx hardhat help
-npx hardhat test
-GAS_REPORT=true npx hardhat test
-npx hardhat node
-npx hardhat run scripts/deploy.js
-```
+- Move adding/removing tokens from the Trading Post to the Town Square.
+- Add ERC20/ERC721 whitelisting for Town Square adding and removing.
+- Add ERC721 purchasing to Trading Post
+- Add tests for the Trading Post
+- Remove contracts specific to Bandit Heist
+- Remove RngHistory and edit combat to be deterministic
+- Refactor prepare/move from LocTemplateResource to LocationBasePrepareMove
+- Add speed stat and item checks for LocationBasePrepareMove
