@@ -2,19 +2,15 @@
 // Authored by Plastic Digits
 pragma solidity >=0.8.19;
 
-import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
-import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetMinterPauser.sol";
+import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+import "./presets/ERC20PresetMinterPauser.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./interfaces/IERC20MetadataLogo.sol";
 import "./libs/AmmLibrary.sol";
 import "./interfaces/IAmmFactory.sol";
 import "./interfaces/IAmmPair.sol";
 
-contract TokenBase is
-    AccessControlEnumerable,
-    ERC20PresetMinterPauser,
-    IERC20MetadataLogo
-{
+contract TokenBase is ERC20PresetMinterPauser, IERC20MetadataLogo {
     using SafeERC20 for IERC20;
     mapping(address => bool) public isExempt;
 
@@ -33,8 +29,8 @@ contract TokenBase is
         IAmmFactory ammFactory,
         string memory name,
         string memory ticker
-    ) ERC20PresetMinterPauser(name, ticker) {
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+    ) ERC20PresetMinterPauser(name, ticker, admin) {
+        _grantRole(MANAGER_ROLE, admin);
 
         ammCzusdPair = IAmmPair(
             ammFactory.createPair(address(this), address(czusd))

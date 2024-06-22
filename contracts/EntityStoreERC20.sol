@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "./interfaces/ILocation.sol";
 import "./interfaces/ILocationController.sol";
 
@@ -37,7 +37,7 @@ contract EntityStoreERC20 is Ownable, Pausable {
         _;
     }
 
-    constructor(ILocationController _locationController) Ownable() {
+    constructor(ILocationController _locationController) Ownable(msg.sender) {
         locationController = _locationController;
     }
 

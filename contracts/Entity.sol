@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.8.19;
 
-import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
+import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
-import "@openzeppelin/contracts/token/ERC721/presets/ERC721PresetMinterPauserAutoId.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
+import "./libs/Counters.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "./interfaces/IEntity.sol";
 import "./interfaces/ILocation.sol";
@@ -82,17 +81,18 @@ contract Entity is
             super.supportsInterface(interfaceId);
     }
 
-    function _beforeTokenTransfer(
-        address from,
+    function _increaseBalance(
+        address account,
+        uint128 amount
+    ) internal override(ERC721, ERC721Enumerable) {
+        ERC721Enumerable._increaseBalance(account, amount);
+    }
+
+    function _update(
         address to,
-        uint256 firstTokenId,
-        uint256 batchSize
-    ) internal virtual override(ERC721, ERC721Enumerable) {
-        ERC721Enumerable._beforeTokenTransfer(
-            from,
-            to,
-            firstTokenId,
-            batchSize
-        );
+        uint256 tokenId,
+        address auth
+    ) internal override(ERC721, ERC721Enumerable) returns (address) {
+        return ERC721Enumerable._update(to, tokenId, auth);
     }
 }

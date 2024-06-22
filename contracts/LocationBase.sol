@@ -3,7 +3,7 @@ pragma solidity >=0.8.19;
 import "./interfaces/ILocation.sol";
 import "./interfaces/ILocationController.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
+import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 
 contract LocationBase is ILocation, AccessControlEnumerable {
     using EnumerableSet for EnumerableSet.AddressSet;
