@@ -2,7 +2,7 @@
 pragma solidity >=0.8.19;
 
 import "./LocationBase.sol";
-import "./Gangs.sol";
+import "./PlayerCharacters.sol";
 import "./EntityStoreERC20.sol";
 import "./EntityStoreERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -12,77 +12,125 @@ import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 contract LocTownSquare is LocationBase {
     using SafeERC20 for IERC20;
 
-    Gangs public immutable gang;
-    IERC20 public immutable bandits;
-    IERC721 public immutable outlaws;
+    bytes32 public constant WHITELIST_MANAGER = keccak256("WHITELIST_MANAGER");
+
+    PlayerCharacters public immutable playerCharacters;
     EntityStoreERC20 public immutable entityStoreERC20;
     EntityStoreERC721 public immutable entityStoreERC721;
 
+    mapping(address token => bool isValid) public isTokenWhitelisted;
+
     constructor(
         ILocationController _locationController,
-        Gangs _gang,
-        IERC20 _bandits,
-        IERC721 _outlaws,
+        PlayerCharacters _playerCharacters,
         EntityStoreERC20 _entityStoreERC20,
         EntityStoreERC721 _entityStoreERC721
     ) LocationBase(_locationController) {
-        gang = _gang;
-        bandits = _bandits;
-        outlaws = _outlaws;
+        playerCharacters = _playerCharacters;
         entityStoreERC20 = _entityStoreERC20;
         entityStoreERC721 = _entityStoreERC721;
-        outlaws.setApprovalForAll(address(entityStoreERC721), true);
-        bandits.approve(address(entityStoreERC20), type(uint256).max);
     }
 
-    function spawnGang() public {
-        gang.mint(msg.sender, ILocation(this));
+    function setNFTWhitelist(
+        IERC721 _nft,
+        bool isWhitelisted
+    ) external onlyRole(WHITELIST_MANAGER) {
+        isTokenWhitelisted[address(_nft)] = isWhitelisted;
+        _nft.setApprovalForAll(address(entityStoreERC721), true);
     }
 
-    function spawnGangWithOutlaws(uint256[] calldata _ids) external {
-        uint256 id = gang.mint(msg.sender, ILocation(this));
-        depositOutlaws(id, _ids);
+    function setIERC20Whitelist(
+        IERC20 _token,
+        bool isWhitelisted
+    ) external onlyRole(WHITELIST_MANAGER) {
+        isTokenWhitelisted[address(_token)] = isWhitelisted;
+        _token.approve(address(entityStoreERC20), type(uint256).max);
     }
 
-    function depositBandits(uint256 _gangId, uint256 _wad) external {
-        require(msg.sender == gang.ownerOf(_gangId), "Only gang owner");
-        bandits.safeTransferFrom(msg.sender, address(this), _wad);
+    function spawnPlayerCharacter() public {
+        playerCharacters.mint(msg.sender, ILocation(this));
+    }
+
+    function spawnPlayerCharactersWithNFT(
+        IERC721 _nft,
+        uint256[] calldata _ids
+    ) external {
+        uint256 playerID = playerCharacters.mint(msg.sender, ILocation(this));
+        depositNFTs(_nft, playerID, _ids);
+    }
+
+    function depositIERC20(
+        IERC20 _token,
+        uint256 _playerID,
+        uint256 _wad
+    ) external {
+        require(isTokenWhitelisted[address(_token)], "Not whitelisted");
+        require(
+            msg.sender == playerCharacters.ownerOf(_playerID),
+            "Only player owner"
+        );
+        _token.safeTransferFrom(msg.sender, address(this), _wad);
         entityStoreERC20.deposit(
-            gang,
-            _gangId,
-            bandits,
-            bandits.balanceOf(address(this))
+            playerCharacters,
+            _playerID,
+            _token,
+            _token.balanceOf(address(this))
         );
     }
 
-    function withdrawBandits(uint256 _gangId, uint256 _wad) external {
-        require(msg.sender == gang.ownerOf(_gangId), "Only gang owner");
-        entityStoreERC20.withdraw(gang, _gangId, bandits, _wad);
-        bandits.safeTransfer(msg.sender, bandits.balanceOf(address(this)));
+    function withdrawIERC20(
+        IERC20 _token,
+        uint256 _playerID,
+        uint256 _wad
+    ) external {
+        require(isTokenWhitelisted[address(_token)], "Not whitelisted");
+        require(
+            msg.sender == playerCharacters.ownerOf(_playerID),
+            "Only player owner"
+        );
+        entityStoreERC20.withdraw(playerCharacters, _playerID, _token, _wad);
+        _token.safeTransfer(msg.sender, _token.balanceOf(address(this)));
     }
 
-    function depositAndWithdrawOutlaws(
-        uint256 _gangId,
+    function depositAndWithdrawNFTs(
+        IERC721 _nft,
+        uint256 _playerID,
         uint256[] calldata _idsToDeposit,
         uint256[] calldata _idsToWithdraw
     ) public {
-        depositOutlaws(_gangId, _idsToDeposit);
-        withdrawOutlaws(_gangId, _idsToWithdraw);
+        depositNFTs(_nft, _playerID, _idsToDeposit);
+        withdrawNFTs(_nft, _playerID, _idsToWithdraw);
     }
 
-    function depositOutlaws(uint256 _gangId, uint256[] calldata _ids) public {
-        require(msg.sender == gang.ownerOf(_gangId), "Only gang owner");
+    function depositNFTs(
+        IERC721 _nft,
+        uint256 _playerID,
+        uint256[] calldata _ids
+    ) public {
+        require(isTokenWhitelisted[address(_nft)], "Not whitelisted");
+        require(
+            msg.sender == playerCharacters.ownerOf(_playerID),
+            "Only player owner"
+        );
         for (uint i; i < _ids.length; i++) {
-            outlaws.transferFrom(msg.sender, address(this), _ids[i]);
+            _nft.transferFrom(msg.sender, address(this), _ids[i]);
         }
-        entityStoreERC721.deposit(gang, _gangId, outlaws, _ids);
+        entityStoreERC721.deposit(playerCharacters, _playerID, _nft, _ids);
     }
 
-    function withdrawOutlaws(uint256 _gangId, uint256[] calldata _ids) public {
-        require(msg.sender == gang.ownerOf(_gangId), "Only gang owner");
-        entityStoreERC721.withdraw(gang, _gangId, outlaws, _ids);
+    function withdrawNFTs(
+        IERC721 _nft,
+        uint256 _playerID,
+        uint256[] calldata _ids
+    ) public {
+        require(isTokenWhitelisted[address(_nft)], "Not whitelisted");
+        require(
+            msg.sender == playerCharacters.ownerOf(_playerID),
+            "Only player owner"
+        );
+        entityStoreERC721.withdraw(playerCharacters, _playerID, _nft, _ids);
         for (uint i; i < _ids.length; i++) {
-            outlaws.transferFrom(address(this), msg.sender, _ids[i]);
+            _nft.transferFrom(address(this), msg.sender, _ids[i]);
         }
     }
 }

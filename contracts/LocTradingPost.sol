@@ -4,12 +4,10 @@ pragma solidity >=0.8.19;
 
 import "./LocationBase.sol";
 import "./TokenBase.sol";
-import "./RngHistory.sol";
 import "./BoostedValueCalculator.sol";
 import "./interfaces/IEntity.sol";
 import "./EntityStoreERC20.sol";
 import "./ResourceStakingPool.sol";
-import "./Roller.sol";
 import "./libs/Counters.sol";
 import "@openzeppelin/contracts/utils/structs/BitMaps.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
@@ -74,32 +72,6 @@ contract LocTradingPost is LocationBase {
         item.totalSold += quantity;
         item.item.approve(address(entityStoreERC20), quantity);
         entityStoreERC20.deposit(entity, entityId, item.item, quantity);
-    }
-
-    function depositERC20(
-        IEntity entity,
-        uint256 entityId,
-        IERC20 token,
-        uint256 wad
-    ) external onlyEntityOwner(entity, entityId) {
-        token.safeTransferFrom(msg.sender, address(this), wad);
-        token.approve(address(entityStoreERC20), wad);
-        entityStoreERC20.deposit(
-            entity,
-            entityId,
-            token,
-            token.balanceOf(address(this))
-        );
-    }
-
-    function withdrawERC20(
-        IEntity entity,
-        uint256 entityId,
-        IERC20 token,
-        uint256 wad
-    ) external onlyEntityOwner(entity, entityId) {
-        entityStoreERC20.withdraw(entity, entityId, token, wad);
-        token.safeTransfer(msg.sender, token.balanceOf(address(this)));
     }
 
     //High gas usage, view only

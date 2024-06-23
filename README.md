@@ -1,14 +1,16 @@
 # Wojack Prison, a blockchain game running on the PRPG Engine.
 
-Foundry project for Wojack Prison smart contracts. To contribute, message t.me/ceramicfingers on telegram.
+Foundry project for Wojack Prison smart contracts. To contribute, message t.me/ceramicfingers on telegram. Uses Foundry.sh.
+
+`forge install`
+`forge build`
 
 # TODO
 
-- Move adding/removing tokens from the Trading Post to the Town Square.
-- Add ERC20/ERC721 whitelisting for Town Square adding and removing.
+- Add purchasing ShopItems with player owner's wallet to Trading Post
+- Add transfer items between players to Trading Post
 - Add ERC721 purchasing to Trading Post
 - Add tests for the Trading Post
-- Remove contracts specific to Bandit Heist
-- Remove RngHistory and edit combat to be deterministic
+- Edit combat to be deterministic
 - Refactor prepare/move from LocTemplateResource to LocationBasePrepareMove
 - Add speed stat and item checks for LocationBasePrepareMove
