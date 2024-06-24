@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.8.19;
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "@openzeppelin/contracts/interfaces/IERC721.sol";
+import "./interfaces/IEntity.sol";
 import "./interfaces/ILocation.sol";
 import "./interfaces/ILocationController.sol";
 
@@ -11,10 +11,10 @@ import "./interfaces/ILocationController.sol";
 contract LocationController is ILocationController {
     using EnumerableSet for EnumerableSet.UintSet;
 
-    mapping(ILocation => mapping(IERC721 => EnumerableSet.UintSet)) locationEntitiesIndex;
-    mapping(IERC721 => mapping(uint256 => ILocation)) entityLocation;
+    mapping(ILocation => mapping(IEntity => EnumerableSet.UintSet)) locationEntitiesIndex;
+    mapping(IEntity => mapping(uint256 => ILocation)) entityLocation;
 
-    modifier onlyEntityOwner(IERC721 _entity, uint256 _entityId) {
+    modifier onlyEntityOwner(IEntity _entity, uint256 _entityId) {
         require(msg.sender == _entity.ownerOf(_entityId), "Only entity owner");
         _;
     }
@@ -22,7 +22,7 @@ contract LocationController is ILocationController {
     //Moves entity from current location to new location.
     //First updates the entity's location, then calls arrival/departure hooks.
     function move(
-        IERC721 _entity,
+        IEntity _entity,
         uint256 _entityId,
         ILocation _dest
     ) external onlyEntityOwner(_entity, _entityId) {
@@ -44,7 +44,7 @@ contract LocationController is ILocationController {
 
     //Spawns an entity at location, so it can move in the future.
     function spawn(
-        IERC721 _entity,
+        IEntity _entity,
         uint256 _entityId,
         ILocation _to
     ) external onlyEntityOwner(_entity, _entityId) {
@@ -66,7 +66,7 @@ contract LocationController is ILocationController {
 
     //despawns an entity, so it is no longer tracked as at a specific location.
     function despawn(
-        IERC721 _entity,
+        IEntity _entity,
         uint256 _entityId
     ) external onlyEntityOwner(_entity, _entityId) {
         require(
@@ -90,13 +90,13 @@ contract LocationController is ILocationController {
     //High gas usage, view only
     function viewOnly_getAllLocalEntitiesFor(
         ILocation _location,
-        IERC721 _entity
+        IEntity _entity
     ) external view override returns (uint256[] memory entityIds_) {
         entityIds_ = locationEntitiesIndex[_location][_entity].values();
     }
 
     function getEntityLocation(
-        IERC721 _entity,
+        IEntity _entity,
         uint256 _entityId
     ) public view override returns (ILocation) {
         return entityLocation[_entity][_entityId];
@@ -104,14 +104,14 @@ contract LocationController is ILocationController {
 
     function getLocalEntityCountFor(
         ILocation _location,
-        IERC721 _entity
+        IEntity _entity
     ) public view override returns (uint256) {
         return locationEntitiesIndex[_location][_entity].length();
     }
 
     function getLocalEntityAtIndexFor(
         ILocation _location,
-        IERC721 _entity,
+        IEntity _entity,
         uint256 _i
     ) public view override returns (uint256 entityId_) {
         entityId_ = locationEntitiesIndex[_location][_entity].at(_i);

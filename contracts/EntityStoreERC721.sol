@@ -3,6 +3,7 @@ pragma solidity >=0.8.19;
 import "@openzeppelin/contracts/interfaces/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "./interfaces/IEntity.sol";
 import "./interfaces/ILocation.sol";
 import "./interfaces/ILocationController.sol";
 
@@ -12,11 +13,11 @@ import "./interfaces/ILocationController.sol";
 contract EntityStoreERC721 {
     using EnumerableSet for EnumerableSet.UintSet;
 
-    mapping(IERC721 => mapping(uint256 => mapping(IERC721 => EnumerableSet.UintSet))) entityStoredERC721Ids;
+    mapping(IEntity => mapping(uint256 => mapping(IERC721 => EnumerableSet.UintSet))) entityStoredERC721Ids;
 
     ILocationController public immutable locationController;
 
-    modifier onlyEntitysLocation(IERC721 _entity, uint256 _entityId) {
+    modifier onlyEntitysLocation(IEntity _entity, uint256 _entityId) {
         require(
             msg.sender ==
                 address(
@@ -32,7 +33,7 @@ contract EntityStoreERC721 {
     }
 
     function deposit(
-        IERC721 _entity,
+        IEntity _entity,
         uint256 _entityId,
         IERC721 _nft,
         uint256[] calldata _nftIds
@@ -50,7 +51,7 @@ contract EntityStoreERC721 {
     }
 
     function withdraw(
-        IERC721 _entity,
+        IEntity _entity,
         uint256 _entityId,
         IERC721 _nft,
         uint256[] calldata _nftIds
@@ -70,9 +71,9 @@ contract EntityStoreERC721 {
     }
 
     function transfer(
-        IERC721 _fromEntity,
+        IEntity _fromEntity,
         uint256 _fromEntityId,
-        IERC721 _toEntity,
+        IEntity _toEntity,
         uint256 _toEntityId,
         IERC721 _nft,
         uint256[] calldata _nftIds
@@ -98,7 +99,7 @@ contract EntityStoreERC721 {
     }
 
     function burn(
-        IERC721 _entity,
+        IEntity _entity,
         uint256 _entityId,
         ERC721Burnable _nft,
         uint256[] calldata _nftIds
@@ -115,7 +116,7 @@ contract EntityStoreERC721 {
     }
 
     function getStoredERC721At(
-        IERC721 _entity,
+        IEntity _entity,
         uint256 _entityId,
         IERC721 _nft,
         uint256 _i
@@ -124,7 +125,7 @@ contract EntityStoreERC721 {
     }
 
     function getStoredERC721CountFor(
-        IERC721 _entity,
+        IEntity _entity,
         uint256 _entityId,
         IERC721 _nft
     ) external view returns (uint256) {
@@ -133,7 +134,7 @@ contract EntityStoreERC721 {
 
     //High gas usage, view only
     function viewOnly_getAllStoredERC721(
-        IERC721 _entity,
+        IEntity _entity,
         uint256 _entityId,
         IERC721 _nft
     ) external view returns (uint256[] memory ids_) {

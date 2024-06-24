@@ -2,6 +2,7 @@
 pragma solidity >=0.8.19;
 import "./interfaces/ILocation.sol";
 import "./interfaces/ILocationController.sol";
+import "./interfaces/IEntity.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 
@@ -26,7 +27,12 @@ contract LocationBase is ILocation, AccessControlEnumerable {
         _grantRole(VALID_ENTITY_SETTER, msg.sender);
     }
 
-    modifier onlyLocalEntity(IERC721 _entity, uint256 _entityId) {
+    modifier onlyEntityOwner(IEntity entity, uint256 entityId) {
+        require(msg.sender == entity.ownerOf(entityId), "Only entity owner");
+        _;
+    }
+
+    modifier onlyLocalEntity(IEntity _entity, uint256 _entityId) {
         require(
             address(this) ==
                 address(
@@ -39,10 +45,10 @@ contract LocationBase is ILocation, AccessControlEnumerable {
 
     //Only callable by LOCATION_CONTROLLER
     function LOCATION_CONTROLLER_onArrival(
-        IERC721 _entity,
-        uint256, // _entityId,
+        IEntity _entity,
+        uint256, // _entityID,
         ILocation _from
-    ) external virtual {
+    ) public virtual {
         require(msg.sender == address(locationController), "Sender must be LC");
         require(validSources.contains(address(_from)), "Invalid source");
         require(validEntities.contains(address(_entity)), "Invalid entity");
@@ -50,10 +56,10 @@ contract LocationBase is ILocation, AccessControlEnumerable {
 
     //Only callable by LOCATION_CONTROLLER
     function LOCATION_CONTROLLER_onDeparture(
-        IERC721 _entity,
+        IEntity _entity,
         uint256, // _entityId,
         ILocation _to
-    ) external virtual {
+    ) public virtual {
         require(msg.sender == address(locationController), "Sender must be LC");
         require(
             validDestinations.contains(address(_to)),
@@ -62,34 +68,49 @@ contract LocationBase is ILocation, AccessControlEnumerable {
         require(validEntities.contains(address(_entity)), "Invalid entity");
     }
 
+    function setValidDestionation(
+        ILocation[] calldata _destinations,
+        bool isValid
+    ) public onlyRole(VALID_ROUTE_SETTER) {
+        if (isValid) {
+            for (uint i; i < _destinations.length; i++) {
+                validDestinations.add(address(_destinations[i]));
+            }
+        } else {
+            for (uint i; i < _destinations.length; i++) {
+                validDestinations.remove(address(_destinations[i]));
+            }
+        }
+    }
+
     function setValidRoute(
-        address[] calldata _locations,
+        ILocation[] calldata _locations,
         bool isValid
     ) public onlyRole(VALID_ROUTE_SETTER) {
         if (isValid) {
             for (uint i; i < _locations.length; i++) {
-                validSources.add(_locations[i]);
-                validDestinations.add(_locations[i]);
+                validSources.add(address(_locations[i]));
+                validDestinations.add(address(_locations[i]));
             }
         } else {
             for (uint i; i < _locations.length; i++) {
-                validSources.remove(_locations[i]);
-                validDestinations.remove(_locations[i]);
+                validSources.remove(address(_locations[i]));
+                validDestinations.remove(address(_locations[i]));
             }
         }
     }
 
     function setValidEntities(
-        address[] calldata _entities,
+        IEntity[] calldata _entities,
         bool isValid
     ) public onlyRole(VALID_ENTITY_SETTER) {
         if (isValid) {
             for (uint i; i < _entities.length; i++) {
-                validEntities.add(_entities[i]);
+                validEntities.add(address(_entities[i]));
             }
         } else {
             for (uint i; i < _entities.length; i++) {
-                validEntities.remove(_entities[i]);
+                validEntities.remove(address(_entities[i]));
             }
         }
     }
@@ -110,8 +131,8 @@ contract LocationBase is ILocation, AccessControlEnumerable {
 
     function getValidSourceAt(
         uint256 _i
-    ) public view override returns (address) {
-        return validSources.at(_i);
+    ) public view override returns (ILocation) {
+        return ILocation(validSources.at(_i));
     }
 
     //High gas usage, view only
@@ -130,8 +151,8 @@ contract LocationBase is ILocation, AccessControlEnumerable {
 
     function getValidDestinationAt(
         uint256 _i
-    ) public view override returns (address) {
-        return validDestinations.at(_i);
+    ) public view override returns (ILocation) {
+        return ILocation(validDestinations.at(_i));
     }
 
     //High gas usage, view only
@@ -150,7 +171,7 @@ contract LocationBase is ILocation, AccessControlEnumerable {
 
     function getValidEntitiesAt(
         uint256 _i
-    ) public view override returns (address) {
-        return validEntities.at(_i);
+    ) public view override returns (IEntity) {
+        return IEntity(validEntities.at(_i));
     }
 }

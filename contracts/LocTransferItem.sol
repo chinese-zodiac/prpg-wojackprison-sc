@@ -28,11 +28,6 @@ contract LocTransferItem is LocationBase {
 
     EnumerableSet.AddressSet transferableItems;
 
-    modifier onlyEntityOwner(IEntity entity, uint256 entityId) {
-        require(msg.sender == entity.ownerOf(entityId), "Only entity owner");
-        _;
-    }
-
     modifier onlyTransferableItem(address item) {
         require(transferableItems.contains(item));
         _;
@@ -55,8 +50,6 @@ contract LocTransferItem is LocationBase {
         uint256 wad
     )
         external
-        onlyLocalEntity(entity, senderID)
-        onlyLocalEntity(entity, receiverID)
         onlyEntityOwner(entity, senderID)
         onlyTransferableItem(address(token))
     {
@@ -78,8 +71,6 @@ contract LocTransferItem is LocationBase {
         uint256[] calldata ids
     )
         external
-        onlyLocalEntity(entity, senderID)
-        onlyLocalEntity(entity, receiverID)
         onlyEntityOwner(entity, senderID)
         onlyTransferableItem(address(token))
     {

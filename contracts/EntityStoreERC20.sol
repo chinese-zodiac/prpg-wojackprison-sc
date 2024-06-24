@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.8.19;
-import "@openzeppelin/contracts/interfaces/IERC721.sol";
+import "./interfaces/IEntity.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -26,7 +26,7 @@ contract EntityStoreERC20 is Ownable, Pausable {
 
     ILocationController public immutable locationController;
 
-    modifier onlyEntitysLocation(IERC721 _entity, uint256 _entityId) {
+    modifier onlyEntitysLocation(IEntity _entity, uint256 _entityId) {
         require(
             msg.sender ==
                 address(
@@ -42,7 +42,7 @@ contract EntityStoreERC20 is Ownable, Pausable {
     }
 
     function deposit(
-        IERC721 _entity,
+        IEntity _entity,
         uint256 _entityId,
         IERC20 _token,
         uint256 _wad
@@ -62,7 +62,7 @@ contract EntityStoreERC20 is Ownable, Pausable {
     }
 
     function withdraw(
-        IERC721 _entity,
+        IEntity _entity,
         uint256 _entityId,
         IERC20 _token,
         uint256 _wad
@@ -77,9 +77,9 @@ contract EntityStoreERC20 is Ownable, Pausable {
     }
 
     function transfer(
-        IERC721 _fromEntity,
+        IEntity _fromEntity,
         uint256 _fromEntityId,
-        IERC721 _toEntity,
+        IEntity _toEntity,
         uint256 _toEntityId,
         IERC20 _token,
         uint256 _wad
@@ -95,7 +95,7 @@ contract EntityStoreERC20 is Ownable, Pausable {
     }
 
     function burn(
-        IERC721 _entity,
+        IEntity _entity,
         uint256 _entityId,
         ERC20Burnable _token,
         uint256 _wad
@@ -115,7 +115,7 @@ contract EntityStoreERC20 is Ownable, Pausable {
     }
 
     function getStoredER20WadFor(
-        IERC721 _entity,
+        IEntity _entity,
         uint256 _entityId,
         IERC20 _token
     ) external view returns (uint256) {

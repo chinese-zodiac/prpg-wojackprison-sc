@@ -12,7 +12,8 @@ import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 contract LocTownSquare is LocationBase {
     using SafeERC20 for IERC20;
 
-    bytes32 public constant WHITELIST_MANAGER = keccak256("WHITELIST_MANAGER");
+    bytes32 public constant WHITELIST_MANAGER =
+        keccak256(abi.encodePacked("WHITELIST_MANAGER"));
 
     PlayerCharacters public immutable playerCharacters;
     EntityStoreERC20 public immutable entityStoreERC20;
