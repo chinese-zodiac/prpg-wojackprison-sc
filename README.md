@@ -11,6 +11,7 @@ Foundry project for Wojack Prison smart contracts. To contribute, message t.me/c
 - Add transfer items between players to Trading Post
 - Add ERC721 purchasing to Trading Post
 - Add tests for the Trading Post
-- Edit combat to be deterministic
 - Refactor prepare/move from LocTemplateResource to LocationBasePrepareMove
-- Add speed stat and item checks for LocationBasePrepareMove
+- Add item checks for LocationBasePrepareMove
+- Edit combat to require/consume items (either IERC721 or IERC20)
+- Move NFT add/remove to TownSquare from Silver Store

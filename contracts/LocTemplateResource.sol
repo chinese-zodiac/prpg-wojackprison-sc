@@ -4,12 +4,10 @@ pragma solidity >=0.8.19;
 
 import "./LocationBase.sol";
 import "./TokenBase.sol";
-import "./RngHistory.sol";
 import "./BoostedValueCalculator.sol";
 import "./interfaces/IEntity.sol";
 import "./EntityStoreERC20.sol";
 import "./ResourceStakingPool.sol";
-import "./Roller.sol";
 import "./libs/Timers.sol";
 import "./libs/Counters.sol";
 import "@openzeppelin/contracts/utils/structs/BitMaps.sol";
@@ -24,41 +22,40 @@ contract LocTemplateResource is LocationBase {
     using Timers for Timers.Timestamp;
     using SafeERC20 for IERC20;
 
-    bytes32 public constant BOOSTER_GANG_PULL =
-        keccak256(abi.encodePacked("BOOSTER_GANG_PULL"));
-    bytes32 public constant BOOSTER_GANG_PROD_DAILY =
-        keccak256(abi.encodePacked("BOOSTER_GANG_PROD_DAILY"));
-    bytes32 public constant BOOSTER_GANG_POWER =
-        keccak256(abi.encodePacked("BOOSTER_GANG_POWER"));
+    bytes32 public constant BOOSTER_PLAYER_PULL =
+        keccak256(abi.encodePacked("BOOSTER_PLAYER_PULL"));
+    bytes32 public constant BOOSTER_PLAYER_PROD_DAILY =
+        keccak256(abi.encodePacked("BOOSTER_PLAYER_PROD_DAILY"));
+    bytes32 public constant BOOSTER_PLAYER_POWER =
+        keccak256(abi.encodePacked("BOOSTER_PLAYER_POWER"));
+    bytes32 public constant BOOSTER_PLAYER_ATKCD =
+        keccak256(abi.encodePacked("BOOSTER_PLAYER_ATKCD"));
+    bytes32 public constant BOOSTER_PLAYER_TRAVELTIME =
+        keccak256(abi.encodePacked("BOOSTER_PLAYER_TRAVELTIME"));
 
     EntityStoreERC20 public entityStoreERC20;
 
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
-    ERC20Burnable public bandit;
-    Roller public roller;
+    ERC20Burnable public combatToken;
 
     //travelTime is consumed by a booster
     uint64 public travelTime = 4 hours;
-    IEntity public gang;
+    IEntity public player;
 
     TokenBase public resourceToken;
 
     uint256 public baseProdDaily;
     uint256 public currentProdDaily;
-    mapping(uint256 => uint256) public gangProdDaily;
-    mapping(uint256 => uint256) public gangPower;
+    mapping(uint256 playerID => uint256 prodDaily) public playerProdDaily;
 
-    //attackCooldown is consumed by a booster
-    uint256 public attackCooldown = 4 hours;
-    mapping(uint256 => uint256) public gangLastAttack;
-    mapping(uint256 => uint256) public gangAttackCooldown;
-    mapping(uint256 => uint256) public gangAttackTarget;
+    mapping(uint256 => Timers.Timestamp) public playerAttackTimer;
 
+    //attackCD is consumed by a booster
+    uint64 public attackCooldown = 4 hours;
     uint256 public attackCostBps = 200;
     uint256 public victoryTransferBps = 1000;
 
-    RngHistory public rngHistory;
     BoostedValueCalculator public boostedValueCalculator;
     ResourceStakingPool public resourceStakingPool;
 
@@ -66,11 +63,11 @@ contract LocTemplateResource is LocationBase {
         Timers.Timestamp readyTimer;
         ILocation destination;
     }
-    mapping(uint256 => MovementPreparation) gangMovementPreparations;
+    mapping(uint256 => MovementPreparation) playerMovementPreparations;
 
     struct Attack {
-        uint256 attackerGangId;
-        uint256 defenderGangId;
+        uint256 attackerPlayerID;
+        uint256 defenderPlayerID;
         uint256 cost;
         uint256 winnings;
         uint256 time;
@@ -83,23 +80,19 @@ contract LocTemplateResource is LocationBase {
     constructor(
         ILocationController _locationController,
         EntityStoreERC20 _entityStoreERC20,
-        IEntity _gang,
-        ERC20Burnable _bandit,
-        RngHistory _rngHistory,
+        IEntity _player,
+        ERC20Burnable _combatToken,
         BoostedValueCalculator _boostedValueCalculator,
         TokenBase _resourceToken,
-        Roller _roller,
         uint256 _baseProdDaily
     ) LocationBase(_locationController) {
         entityStoreERC20 = _entityStoreERC20;
         baseProdDaily = _baseProdDaily;
         currentProdDaily = _baseProdDaily;
-        rngHistory = _rngHistory;
         boostedValueCalculator = _boostedValueCalculator;
         resourceToken = _resourceToken;
-        gang = _gang;
-        bandit = _bandit;
-        roller = _roller;
+        player = _player;
+        combatToken = _combatToken;
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(MANAGER_ROLE, msg.sender);
         _grantRole(VALID_ENTITY_SETTER, msg.sender);
@@ -111,159 +104,128 @@ contract LocTemplateResource is LocationBase {
         );
     }
 
-    modifier onlyGangOwner(uint256 gangId) {
-        require(msg.sender == gang.ownerOf(gangId), "Only gang owner");
+    modifier onlyPlayerOwner(uint256 playerID) {
+        require(msg.sender == player.ownerOf(playerID), "Only player owner");
         _;
     }
 
     function claimPendingResources(
-        uint256 gangId
-    ) external onlyGangOwner(gangId) {
-        _claimPendingResources(gangId);
+        uint256 playerID
+    ) external onlyPlayerOwner(playerID) {
+        _claimPendingResources(playerID);
     }
 
-    function _claimPendingResources(uint256 gangId) internal {
-        if (resourceStakingPool.pendingReward(bytes32(gangId)) == 0) {
+    function _claimPendingResources(uint256 playerID) internal {
+        if (resourceStakingPool.pendingReward(bytes32(playerID)) == 0) {
             return;
         }
         uint256 initialResourceBal = resourceToken.balanceOf(address(this));
-        resourceStakingPool.claimFor(bytes32(gangId));
+        resourceStakingPool.claimFor(bytes32(playerID));
         uint256 deltabal = resourceToken.balanceOf(address(this)) -
             initialResourceBal;
         resourceToken.approve(address(entityStoreERC20), deltabal);
-        entityStoreERC20.deposit(gang, gangId, resourceToken, deltabal);
+        entityStoreERC20.deposit(player, playerID, resourceToken, deltabal);
     }
 
-    function startAttack(
-        uint256 attackerGangId,
-        uint256 defenderGangId
+    function attack(
+        uint256 attackerPlayerID,
+        uint256 defenderPlayerID
     )
-        external
-        payable
-        onlyLocalEntity(gang, attackerGangId)
-        onlyLocalEntity(gang, defenderGangId)
-        onlyGangOwner(attackerGangId)
+        public
+        onlyLocalEntity(player, attackerPlayerID)
+        onlyLocalEntity(player, defenderPlayerID)
+        onlyPlayerOwner(attackerPlayerID)
     {
-        require(attackerGangId != defenderGangId, "Cannot attack self");
+        require(attackerPlayerID != defenderPlayerID, "Cannot attack self");
         require(
-            msg.value == rngHistory.requestFee(),
-            "Must pay rngHistory.requestFee"
-        );
-        require(
-            gangAttackCooldown[attackerGangId] <= block.timestamp,
+            playerAttackTimer[attackerPlayerID].isExpired() ||
+                playerAttackTimer[attackerPlayerID].isUnset(),
             "Attack on cooldown"
         );
-        require(isGangWorking(attackerGangId), "Attacker not working");
-        rngHistory.requestRandomWord{value: msg.value}();
-        gangLastAttack[attackerGangId] = block.timestamp;
-        gangAttackCooldown[attackerGangId] = block.timestamp + attackCooldown;
-        gangAttackTarget[attackerGangId] = defenderGangId;
-    }
+        require(isPlayerWorking(attackerPlayerID), "Attacker not working");
+        playerAttackTimer[attackerPlayerID].setDeadline(
+            uint64(
+                block.timestamp +
+                    playerStat(attackerPlayerID, BOOSTER_PLAYER_ATKCD)
+            )
+        ); //attackcooldown should be set by booster
 
-    function resolveAttack(
-        uint256 attackerGangId
-    ) public onlyGangOwner(attackerGangId) {
-        require(gangLastAttack[attackerGangId] != 0, "No attack queued");
-
-        uint256 defenderGangId = gangAttackTarget[attackerGangId];
-
-        uint256 randWord = rngHistory.getAtOrAfterTimestamp(
-            uint64(gangLastAttack[attackerGangId] + 1) //prevent resolving in same block as attack
+        Attack storage currentAttack = attackLog[attackLogNextUid.current()];
+        attackLogNextUid.increment();
+        currentAttack.attackerPlayerID = attackerPlayerID;
+        currentAttack.defenderPlayerID = defenderPlayerID;
+        currentAttack.time = block.timestamp;
+        uint256 attackerTokens = entityStoreERC20.getStoredER20WadFor(
+            player,
+            attackerPlayerID,
+            combatToken
         );
-        require(randWord != 0, "randWord not yet available");
+        uint256 defenderTokens = entityStoreERC20.getStoredER20WadFor(
+            player,
+            defenderPlayerID,
+            combatToken
+        );
+        uint256 attackerPowerPerToken = (playerStat(
+            attackerPlayerID,
+            BOOSTER_PLAYER_POWER
+        ) * 1 ether) / attackerTokens;
+        uint256 defenderPowerPerToken = (playerStat(
+            defenderPlayerID,
+            BOOSTER_PLAYER_POWER
+        ) * 1 ether) / defenderTokens;
+        uint256 powerRatio = (1 ether * attackerPowerPerToken) /
+            defenderPowerPerToken;
 
-        if (
-            address(this) !=
-            address(locationController.getEntityLocation(gang, defenderGangId))
-        ) {
-            //defender ran away, do nothing
-        } else {
-            Attack storage attack = attackLog[attackLogNextUid.current()];
-            attackLogNextUid.increment();
-            attack.attackerGangId = attackerGangId;
-            attack.defenderGangId = defenderGangId;
-            attack.time = block.timestamp;
-            uint256 attackerPower = gangPower[attackerGangId];
-            uint256 defenderPower = gangPower[defenderGangId];
-
-            //Destroy the bandit cost from attacker
-            uint256 attackCost = (attackCostBps *
-                entityStoreERC20.getStoredER20WadFor(
-                    gang,
-                    attackerGangId,
-                    bandit
-                )) / 10000;
-            entityStoreERC20.burn(gang, attackerGangId, bandit, attackCost);
-            attack.cost = attackCost;
-            if (
-                roller
-                    .getUniformRoll(
-                        keccak256(
-                            abi.encodePacked(
-                                randWord,
-                                attackerGangId,
-                                defenderGangId
-                            )
-                        ),
-                        UD60x18.wrap(0),
-                        UD60x18.wrap(100 ether)
-                    )
-                    .lt(
-                        UD60x18.wrap(
-                            (100 ether * attackerPower) /
-                                (attackerPower + defenderPower)
-                        )
-                    )
-            ) {
-                //victory
-                uint256 winnings = (victoryTransferBps *
-                    entityStoreERC20.getStoredER20WadFor(
-                        gang,
-                        defenderGangId,
-                        bandit
-                    )) / 10000;
-                entityStoreERC20.transfer(
-                    gang,
-                    defenderGangId,
-                    gang,
-                    attackerGangId,
-                    bandit,
-                    winnings
-                );
-                attack.winnings = winnings;
-                _haltGangProduction(defenderGangId);
-                _startGangProduction(defenderGangId);
-            } else {
-                //defeat, do nothing
-            }
-            _haltGangProduction(attackerGangId);
-            _startGangProduction(attackerGangId);
+        //Destroy the combatToken cost from attacker
+        currentAttack.cost = (attackCostBps * attackerTokens) / 10000;
+        if (currentAttack.cost > 0) {
+            entityStoreERC20.burn(
+                player,
+                attackerPlayerID,
+                combatToken,
+                currentAttack.cost
+            );
         }
 
-        delete gangLastAttack[attackerGangId];
-        delete gangAttackTarget[attackerGangId];
+        //victory
+        currentAttack.winnings =
+            (victoryTransferBps * defenderTokens * powerRatio) /
+            10000 ether;
+
+        if (currentAttack.winnings > 0) {
+            entityStoreERC20.transfer(
+                player,
+                defenderPlayerID,
+                player,
+                attackerPlayerID,
+                combatToken,
+                currentAttack.winnings
+            );
+        }
+        _haltPlayerProduction(defenderPlayerID);
+        _startPlayerProduction(defenderPlayerID);
+
+        _haltPlayerProduction(attackerPlayerID);
+        _startPlayerProduction(attackerPlayerID);
     }
 
-    function prepareToMoveGangToFixedDestination(
-        uint256 gangId,
+    function prepareToMovePlayerToFixedDestination(
+        uint256 playerID,
         ILocation destination
-    ) external onlyLocalEntity(gang, gangId) onlyGangOwner(gangId) {
+    ) external onlyLocalEntity(player, playerID) onlyPlayerOwner(playerID) {
         require(fixedDestinations.contains(address(destination)));
-        gangMovementPreparations[gangId].destination = destination;
-        _prepareMove(gangId);
+        playerMovementPreparations[playerID].destination = destination;
+        _prepareMove(playerID);
     }
 
-    function _prepareMove(uint256 gangId) internal {
-        gangMovementPreparations[gangId].readyTimer.setDeadline(
-            uint64(block.timestamp + travelTime)
+    function _prepareMove(uint256 playerID) internal {
+        playerMovementPreparations[playerID].readyTimer.setDeadline(
+            uint64(
+                block.timestamp +
+                    playerStat(playerID, BOOSTER_PLAYER_TRAVELTIME)
+            )
         );
-
-        if (gangLastAttack[gangId] != 0) {
-            //resolve pending attack
-            resolveAttack(gangId);
-        }
-
-        _haltGangProduction(gangId);
+        _haltPlayerProduction(playerID);
     }
 
     //Only callable by LOCATION_CONTROLLER
@@ -275,14 +237,8 @@ contract LocTemplateResource is LocationBase {
         require(msg.sender == address(locationController), "Sender must be LC");
         require(validSources.contains(address(_from)), "Invalid source");
         require(validEntities.contains(address(_entity)), "Invalid entity");
-        if (_entity == gang) {
-            gangPower[_entityId] = boostedValueCalculator.getBoostedValue(
-                this,
-                BOOSTER_GANG_POWER,
-                gang,
-                _entityId
-            );
-            _startGangProduction(_entityId);
+        if (_entity == player) {
+            _startPlayerProduction(_entityId);
         }
     }
 
@@ -298,65 +254,75 @@ contract LocTemplateResource is LocationBase {
             "Invalid destination"
         );
         require(validEntities.contains(address(_entity)), "Invalid entity");
-        if (_entity == gang) {
+        if (_entity == player) {
             //Only let prepared entities go
-            require(isGangReadyToMove(_entityId), "Gang not ready to move");
+            require(isPlayerReadyToMove(_entityId), "Player not ready to move");
             //Only go to prepared destination
             require(
-                _to == gangDestination(_entityId),
-                "Gang not prepared to travel there"
+                _to == playerDestination(_entityId),
+                "Player not prepared to travel there"
             );
 
             //reset timer
-            gangMovementPreparations[_entityId].readyTimer.reset();
-
-            delete gangPower[_entityId];
+            playerMovementPreparations[_entityId].readyTimer.reset();
         }
     }
 
-    function pendingResources(uint256 gangId) external view returns (uint256) {
-        return resourceStakingPool.pendingReward(bytes32(gangId));
+    function pendingResources(
+        uint256 playerID
+    ) external view returns (uint256) {
+        return resourceStakingPool.pendingReward(bytes32(playerID));
     }
 
-    function gangPull(uint256 gangId) public view returns (uint256) {
-        return resourceStakingPool.getShares(bytes32(gangId));
+    function playerPull(uint256 playerID) public view returns (uint256) {
+        return resourceStakingPool.getShares(bytes32(playerID));
     }
 
     function totalPull() public view returns (uint256) {
         return resourceStakingPool.totalShares();
     }
 
-    function gangResourcesPerDay(
-        uint256 gangId
+    function playerResourcesPerDay(
+        uint256 playerID
     ) external view returns (uint256) {
         if (totalPull() == 0) return 0;
-        return (gangPull(gangId) * currentProdDaily) / totalPull();
+        return (playerPull(playerID) * currentProdDaily) / totalPull();
     }
 
-    function gangDestination(uint256 gangId) public view returns (ILocation) {
-        return gangMovementPreparations[gangId].destination;
+    function playerDestination(
+        uint256 playerID
+    ) public view returns (ILocation) {
+        return playerMovementPreparations[playerID].destination;
     }
 
-    function isGangPreparingToMove(uint256 gangId) public view returns (bool) {
+    function playerAttackCooldown(
+        uint256 playerID
+    ) external view returns (uint256) {
+        return playerAttackTimer[playerID].getDeadline();
+    }
+
+    function isPlayerPreparingToMove(
+        uint256 playerID
+    ) public view returns (bool) {
         return
-            gangMovementPreparations[gangId].readyTimer.isPending() ||
-            isGangReadyToMove(gangId);
+            playerMovementPreparations[playerID].readyTimer.isPending() ||
+            isPlayerReadyToMove(playerID);
     }
 
-    function isGangReadyToMove(uint256 gangId) public view returns (bool) {
-        return gangMovementPreparations[gangId].readyTimer.isExpired();
+    function isPlayerReadyToMove(uint256 playerID) public view returns (bool) {
+        return playerMovementPreparations[playerID].readyTimer.isExpired();
     }
 
-    function isGangWorking(uint256 gangId) public view returns (bool) {
+    function isPlayerWorking(uint256 playerID) public view returns (bool) {
         return
-            gangMovementPreparations[gangId].readyTimer.isUnset() &&
-            locationController.getEntityLocation(gang, gangId) == this;
+            playerMovementPreparations[playerID].readyTimer.isUnset() &&
+            locationController.getEntityLocation(player, playerID) == this;
     }
 
-    function whenGangIsReadyToMove(
-        uint256 gangId
+    function whenPlayerIsReadyToMove(
+        uint256 playerID
     ) public view returns (uint64) {
-        return gangMovementPreparations[gangId].readyTimer.getDeadline();
+        return playerMovementPreparations[playerID].readyTimer.getDeadline();
     }
 
     //High gas usage, view only
@@ -415,8 +381,17 @@ contract LocTemplateResource is LocationBase {
         }
     }
 
-    function setRngHistory(RngHistory to) external onlyRole(MANAGER_ROLE) {
-        rngHistory = to;
+    function playerStat(
+        uint256 playerID,
+        bytes32 statHash
+    ) public view returns (uint256) {
+        return
+            boostedValueCalculator.getBoostedValue(
+                this,
+                statHash,
+                player,
+                playerID
+            );
     }
 
     function setBoostedValueCalculator(
@@ -436,20 +411,16 @@ contract LocTemplateResource is LocationBase {
         resourceStakingPool.setRewardToken(to);
     }
 
-    function setRoller(Roller to) external onlyRole(MANAGER_ROLE) {
-        roller = to;
-    }
-
-    function setAttackCooldown(uint256 to) external onlyRole(MANAGER_ROLE) {
-        attackCooldown = to;
-    }
-
     function setAttackCostBps(uint64 to) external onlyRole(MANAGER_ROLE) {
         attackCostBps = to;
     }
 
     function setVictoryTransferBps(uint64 to) external onlyRole(MANAGER_ROLE) {
         victoryTransferBps = to;
+    }
+
+    function setAttackCooldown(uint64 to) external onlyRole(MANAGER_ROLE) {
+        attackCooldown = to;
     }
 
     function setTravelTime(uint64 to) external onlyRole(MANAGER_ROLE) {
@@ -464,30 +435,23 @@ contract LocTemplateResource is LocationBase {
         currentProdDaily += baseProdDaily;
     }
 
-    function _haltGangProduction(uint256 gangId) internal {
-        _claimPendingResources(gangId);
+    function _haltPlayerProduction(uint256 playerID) internal {
+        _claimPendingResources(playerID);
         resourceStakingPool.setRewardPerSecond(currentProdDaily / 24 hours);
-        resourceStakingPool.withdrawFor(bytes32(gangId));
-        currentProdDaily -= gangProdDaily[gangId];
-        delete gangProdDaily[gangId];
+        resourceStakingPool.withdrawFor(bytes32(playerID));
+        currentProdDaily -= playerProdDaily[playerID];
+        delete playerProdDaily[playerID];
     }
 
-    function _startGangProduction(uint256 gangId) internal {
-        uint256 pull = boostedValueCalculator.getBoostedValue(
-            this,
-            BOOSTER_GANG_PULL,
-            gang,
-            gangId
+    function _startPlayerProduction(uint256 playerID) internal {
+        uint256 pull = playerStat(playerID, BOOSTER_PLAYER_PULL);
+        playerProdDaily[playerID] = playerStat(
+            playerID,
+            BOOSTER_PLAYER_PROD_DAILY
         );
-        gangProdDaily[gangId] = boostedValueCalculator.getBoostedValue(
-            this,
-            BOOSTER_GANG_PROD_DAILY,
-            gang,
-            gangId
-        );
-        currentProdDaily += gangProdDaily[gangId];
+        currentProdDaily += playerProdDaily[playerID];
 
         resourceStakingPool.setRewardPerSecond(currentProdDaily / 24 hours);
-        resourceStakingPool.depositFor(bytes32(gangId), pull);
+        resourceStakingPool.depositFor(bytes32(playerID), pull);
     }
 }
