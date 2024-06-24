@@ -2,7 +2,7 @@
 // Authored by Plastic Digits
 pragma solidity >=0.8.19;
 
-import "./LocationBase.sol";
+import "./LocTransferItem.sol";
 import "./TokenBase.sol";
 import "./BoostedValueCalculator.sol";
 import "./interfaces/IEntity.sol";
@@ -14,15 +14,11 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-contract LocTradingPost is LocationBase {
+contract LocTradingPost is LocTransferItem {
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.UintSet;
     using Counters for Counters.Counter;
     using SafeERC20 for IERC20;
-
-    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
-
-    EntityStoreERC20 public entityStoreERC20;
 
     struct ShopItem {
         TokenBase item;
@@ -36,17 +32,17 @@ contract LocTradingPost is LocationBase {
     Counters.Counter shopItemNextUid;
     mapping(uint256 => ShopItem) public shopItems;
 
-    modifier onlyEntityOwner(IEntity entity, uint256 entityId) {
-        require(msg.sender == entity.ownerOf(entityId), "Only entity owner");
-        _;
-    }
-
     constructor(
         ILocationController _locationController,
-        EntityStoreERC20 _entityStoreERC20
-    ) LocationBase(_locationController) {
-        entityStoreERC20 = _entityStoreERC20;
-    }
+        EntityStoreERC20 _entityStoreERC20,
+        EntityStoreERC721 _entityStoreERC721
+    )
+        LocTransferItem(
+            _locationController,
+            _entityStoreERC20,
+            _entityStoreERC721
+        )
+    {}
 
     function buyShopItem(
         IEntity entity,
