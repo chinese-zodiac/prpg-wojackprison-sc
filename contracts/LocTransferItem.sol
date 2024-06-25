@@ -2,6 +2,7 @@
 // Authored by Plastic Digits
 pragma solidity >=0.8.19;
 
+import "./AccessRoleManager.sol";
 import "./LocationBase.sol";
 import "./TokenBase.sol";
 import "./BoostedValueCalculator.sol";
@@ -15,13 +16,11 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-contract LocTransferItem is LocationBase {
+contract LocTransferItem is AccessRoleManager, LocationBase {
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.UintSet;
     using Counters for Counters.Counter;
     using SafeERC20 for IERC20;
-
-    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     EntityStoreERC20 public entityStoreERC20;
     EntityStoreERC721 public entityStoreERC721;
@@ -106,13 +105,11 @@ contract LocTransferItem is LocationBase {
         return transferableItems.at(index);
     }
 
-    function addTransferableItem(address item) external onlyRole(MANAGER_ROLE) {
+    function addTransferableItem(address item) external onlyManager {
         transferableItems.add(item);
     }
 
-    function deleteTransferableItem(
-        address item
-    ) external onlyRole(MANAGER_ROLE) {
+    function deleteTransferableItem(address item) external onlyManager {
         transferableItems.remove(item);
     }
 }

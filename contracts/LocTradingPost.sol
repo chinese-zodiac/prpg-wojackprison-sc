@@ -2,6 +2,7 @@
 // Authored by Plastic Digits
 pragma solidity >=0.8.19;
 
+import "./AccessRoleManager.sol";
 import "./LocTransferItem.sol";
 import "./TokenBase.sol";
 import "./BoostedValueCalculator.sol";
@@ -14,7 +15,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-contract LocTradingPost is LocTransferItem {
+contract LocTradingPost is AccessRoleManager, LocTransferItem {
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.UintSet;
     using Counters for Counters.Counter;
@@ -28,6 +29,9 @@ contract LocTradingPost is LocTransferItem {
         uint256 totalSold;
     }
 
+    address public taxReceiver;
+    uint256 public taxBPS = 0;
+
     EnumerableSet.UintSet shopItemKeys;
     Counters.Counter shopItemNextUid;
     mapping(uint256 => ShopItem) public shopItems;
@@ -35,14 +39,19 @@ contract LocTradingPost is LocTransferItem {
     constructor(
         ILocationController _locationController,
         EntityStoreERC20 _entityStoreERC20,
-        EntityStoreERC721 _entityStoreERC721
+        EntityStoreERC721 _entityStoreERC721,
+        address _taxReceiver,
+        uint256 _taxBPS
     )
         LocTransferItem(
             _locationController,
             _entityStoreERC20,
             _entityStoreERC721
         )
-    {}
+    {
+        taxReceiver = _taxReceiver;
+        taxBPS = _taxBPS;
+    }
 
     function buyShopItem(
         IEntity entity,
@@ -55,14 +64,28 @@ contract LocTradingPost is LocTransferItem {
         onlyEntityOwner(entity, entityId)
     {
         ShopItem memory item = shopItems[shopItemId];
+        uint256 totalFee = (quantity *
+            (item.pricePerItemWad +
+                item.totalSold *
+                item.increasePerItemSold)) / 1 ether;
+        uint256 taxFee = (totalFee * taxBPS) / 10_000;
+        if (taxFee > 0) {
+            entityStoreERC20.withdraw(
+                entity,
+                entityId,
+                item.currency,
+                totalFee - taxFee
+            );
+            item.currency.transfer(
+                taxReceiver,
+                item.currency.balanceOf(address(this))
+            );
+        }
         entityStoreERC20.burn(
             entity,
             entityId,
             item.currency,
-            (quantity *
-                (item.pricePerItemWad +
-                    item.totalSold *
-                    item.increasePerItemSold)) / 1 ether
+            totalFee - taxFee
         );
         item.item.mint(address(this), quantity);
         item.totalSold += quantity;
@@ -97,7 +120,7 @@ contract LocTradingPost is LocTransferItem {
         TokenBase currency,
         uint256 pricePerItemWad,
         uint256 increasePerItemSold
-    ) external onlyRole(MANAGER_ROLE) {
+    ) external onlyManager {
         uint256 id = shopItemNextUid.current();
         shopItemKeys.add(id);
         shopItems[id].item = item;
@@ -113,7 +136,7 @@ contract LocTradingPost is LocTransferItem {
         TokenBase currency,
         uint256 pricePerItemWad,
         uint256 increasePerItemSold
-    ) external onlyRole(MANAGER_ROLE) {
+    ) external onlyManager {
         require(shopItemKeys.length() > index, "index not in shop");
         uint256 id = shopItemKeys.at(index);
         shopItems[id].item = item;
@@ -122,7 +145,7 @@ contract LocTradingPost is LocTransferItem {
         shopItems[id].increasePerItemSold = increasePerItemSold;
     }
 
-    function deleteItemFromShop(uint256 index) external onlyRole(MANAGER_ROLE) {
+    function deleteItemFromShop(uint256 index) external onlyManager {
         require(shopItemKeys.length() > index, "index not in shop");
         uint256 id = shopItemKeys.at(index);
         delete shopItems[id].item;
@@ -132,5 +155,14 @@ contract LocTradingPost is LocTransferItem {
         delete shopItems[id].totalSold;
         delete shopItems[id];
         shopItemKeys.remove(id);
+    }
+
+    function setTaxReceiver(address _to) external onlyManager {
+        taxReceiver = _to;
+    }
+
+    function setTaxBPS(uint256 _to) external onlyManager {
+        require(_to <= 10_000, "Cannot be more than 10,000 BPS (100%)");
+        taxBPS = _to;
     }
 }
