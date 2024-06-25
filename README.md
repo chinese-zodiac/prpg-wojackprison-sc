@@ -8,5 +8,4 @@ Foundry project for Wojack Prison smart contracts. To contribute, message t.me/c
 # TODO
 
 - Add tests for the Trading Post
-- Add item checks for LocationBasePrepareMove
 - Edit combat to require/consume items (IERC20)

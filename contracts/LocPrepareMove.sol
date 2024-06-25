@@ -100,10 +100,8 @@ abstract contract LocPrepareMove is
         bool isTimed
     ) public onlyRole(VALID_ROUTE_SETTER) {
         setValidDestionation(_destinations, isTimed);
-        if (isTimed) {
-            for (uint i; i < _destinations.length; i++) {
-                isDestinationTimed[_destinations[i]] = isTimed;
-            }
+        for (uint i; i < _destinations.length; i++) {
+            isDestinationTimed[_destinations[i]] = isTimed;
         }
     }
 
