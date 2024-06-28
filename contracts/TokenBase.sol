@@ -25,16 +25,10 @@ contract TokenBase is ERC20PresetMinterPauser, IERC20MetadataLogo {
 
     constructor(
         address admin,
-        address czusd,
-        IAmmFactory ammFactory,
         string memory name,
         string memory ticker
     ) ERC20PresetMinterPauser(name, ticker, admin) {
         _grantRole(MANAGER_ROLE, admin);
-
-        ammCzusdPair = IAmmPair(
-            ammFactory.createPair(address(this), address(czusd))
-        );
     }
 
     function _update(
@@ -86,6 +80,16 @@ contract TokenBase is ERC20PresetMinterPauser, IERC20MetadataLogo {
         string calldata ipfsCid
     ) external onlyRole(MANAGER_ROLE) {
         logoUri = string.concat("ipfs://", ipfsCid);
+    }
+
+    function spawnAmmPair(
+        IAmmFactory _factory,
+        IERC20 _czusd
+    ) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(address(ammCzusdPair) == address(0x0), "Pair already spawned");
+        ammCzusdPair = IAmmPair(
+            _factory.createPair(address(this), address(_czusd))
+        );
     }
 
     function setAmmPair(IAmmPair _to) public onlyRole(DEFAULT_ADMIN_ROLE) {
