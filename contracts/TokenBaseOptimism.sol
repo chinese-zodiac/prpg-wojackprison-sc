@@ -1,16 +1,31 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0
+// Authored by Plastic Digits
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import {IOptimismMintableERC20} from "./interfaces/IOptimismMintableERC20.sol";
+import {IOptimismMintableERC20, ILegacyMintableERC20} from "./interfaces/IOptimismMintableERC20.sol";
 import {TokenBase} from "./TokenBase.sol";
 import "./presets/ERC20PresetMinterPauser.sol";
 import "./interfaces/IAmmFactory.sol";
 import "./interfaces/IAmmPair.sol";
 
-contract TokenBaseOptimism is IOptimismMintableERC20, TokenBase {
+//DEPLOYMENT INSTRUCTIONS
+//Should use a unique deployer address that is only used for deploying and nothing else
+//so that the nonce is the same on both chains.
+//ADMIN should be a admin account, NOT deployer.
+//Constructor params must be the same on both chains.
+//Update settings with a admin account NOT deployer
+
+//IMPORTANT WARNING:
+//This contract implements methods that seem unecessary, and are not in the inherited interfaces, but are actually part of undocumented interfaces that the optimism sdk requires.
+//Newer dapps should not need these, but forks must implement.
+contract TokenBaseOptimism is
+    IOptimismMintableERC20,
+    ILegacyMintableERC20,
+    TokenBase
+{
     /// @notice Address of the corresponding version of this token on the remote chain.
     address public immutable REMOTE_TOKEN;
 
@@ -29,10 +44,7 @@ contract TokenBaseOptimism is IOptimismMintableERC20, TokenBase {
 
     /// @notice A modifier that only allows the bridge to call.
     modifier onlyBridge() {
-        require(
-            msg.sender == BRIDGE,
-            "MyCustomL2Token: only bridge can mint and burn"
-        );
+        require(msg.sender == BRIDGE, "TBO: only bridge");
         _;
     }
 
@@ -40,13 +52,27 @@ contract TokenBaseOptimism is IOptimismMintableERC20, TokenBase {
         address admin,
         string memory name,
         string memory ticker,
-        address _bridge //l2 standard bridge address
+        uint256 _l1ChainID,
+        uint256 _l2ChainID,
+        address _l1Bridge, //l1 standard bridge address
+        address _l2Bridge //l2 standard bridge address
     ) TokenBase(admin, name, ticker) {
-        _grantRole(MANAGER_ROLE, admin);
-
         REMOTE_TOKEN = address(this);
-        BRIDGE = _bridge;
-        _grantRole(MINTER_ROLE, _bridge);
+        if (block.chainid == _l1ChainID) {
+            BRIDGE = _l1Bridge;
+        } else if (block.chainid == _l2ChainID) {
+            BRIDGE = _l2Bridge;
+        } else {
+            require(false, "INVALID CHAIN");
+        }
+        _grantRole(MINTER_ROLE, BRIDGE);
+        _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    }
+
+    /// @custom:legacy
+    /// @notice Legacy getter for l1Token.
+    function l1Token() public view returns (address) {
+        return REMOTE_TOKEN;
     }
 
     /// @custom:legacy
@@ -58,6 +84,12 @@ contract TokenBaseOptimism is IOptimismMintableERC20, TokenBase {
     /// @custom:legacy
     /// @notice Legacy getter for BRIDGE.
     function bridge() public view returns (address) {
+        return BRIDGE;
+    }
+
+    /// @custom:legacy
+    /// @notice Legacy getter for BRIDGE.
+    function l2Bridge() public view returns (address) {
         return BRIDGE;
     }
 
@@ -76,7 +108,14 @@ contract TokenBaseOptimism is IOptimismMintableERC20, TokenBase {
     function mint(
         address to,
         uint256 amount
-    ) public override(IOptimismMintableERC20, ERC20PresetMinterPauser) {
+    )
+        public
+        override(
+            IOptimismMintableERC20,
+            ILegacyMintableERC20,
+            ERC20PresetMinterPauser
+        )
+    {
         ERC20PresetMinterPauser.mint(to, amount);
     }
 
@@ -86,7 +125,12 @@ contract TokenBaseOptimism is IOptimismMintableERC20, TokenBase {
     function burn(
         address _from,
         uint256 _amount
-    ) external virtual override(IOptimismMintableERC20) onlyBridge {
+    )
+        external
+        virtual
+        override(IOptimismMintableERC20, ILegacyMintableERC20)
+        onlyBridge
+    {
         _burn(_from, _amount);
         emit Burn(_from, _amount);
     }

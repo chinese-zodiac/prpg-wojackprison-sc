@@ -29,6 +29,7 @@ contract TokenBase is ERC20PresetMinterPauser, IERC20MetadataLogo {
         string memory ticker
     ) ERC20PresetMinterPauser(name, ticker, admin) {
         _grantRole(MANAGER_ROLE, admin);
+        isExempt[address(0x0)] = true; //no tax for mints and burns
     }
 
     function _update(
@@ -36,9 +37,6 @@ contract TokenBase is ERC20PresetMinterPauser, IERC20MetadataLogo {
         address recipient,
         uint256 amount
     ) internal override {
-        require(sender != address(0), "ERC20: transfer from the zero address");
-        require(recipient != address(0), "ERC20: transfer to the zero address");
-
         //Handle burn
         if (
             //No tax for exempt
