@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 
-contract LocTownSquare is LocationBase {
+contract LocSpawnPoint is LocationBase {
     using SafeERC20 for IERC20;
 
     bytes32 public constant WHITELIST_MANAGER =
@@ -20,6 +20,12 @@ contract LocTownSquare is LocationBase {
     EntityStoreERC721 public immutable entityStoreERC721;
 
     mapping(address token => bool isValid) public isTokenWhitelisted;
+
+    struct SpawnCost {
+        IERC20 token;
+        uint256 wad;
+    }
+    mapping(PlayerCharacters.PLAYER_TYPE pType => SpawnCost spawnCost) public spawnCosts;
 
     constructor(
         ILocationController _locationController,
@@ -48,16 +54,8 @@ contract LocTownSquare is LocationBase {
         _token.approve(address(entityStoreERC20), type(uint256).max);
     }
 
-    function spawnPlayerCharacter() public {
+    function spawnPlayerCharacter(PlayerCharacters.PLAYER_TYPE pType) public {
         playerCharacters.mint(msg.sender, ILocation(this));
-    }
-
-    function spawnPlayerCharactersWithNFT(
-        IERC721 _nft,
-        uint256[] calldata _ids
-    ) external {
-        uint256 playerID = playerCharacters.mint(msg.sender, ILocation(this));
-        depositNFTs(_nft, playerID, _ids);
     }
 
     function depositIERC20(
@@ -84,54 +82,9 @@ contract LocTownSquare is LocationBase {
         uint256 _playerID,
         uint256 _wad
     ) external {
-        require(isTokenWhitelisted[address(_token)], "Not whitelisted");
-        require(
-            msg.sender == playerCharacters.ownerOf(_playerID),
-            "Only player owner"
-        );
         entityStoreERC20.withdraw(playerCharacters, _playerID, _token, _wad);
         _token.safeTransfer(msg.sender, _token.balanceOf(address(this)));
     }
 
-    function depositAndWithdrawNFTs(
-        IERC721 _nft,
-        uint256 _playerID,
-        uint256[] calldata _idsToDeposit,
-        uint256[] calldata _idsToWithdraw
-    ) public {
-        depositNFTs(_nft, _playerID, _idsToDeposit);
-        withdrawNFTs(_nft, _playerID, _idsToWithdraw);
-    }
-
-    function depositNFTs(
-        IERC721 _nft,
-        uint256 _playerID,
-        uint256[] calldata _ids
-    ) public {
-        require(isTokenWhitelisted[address(_nft)], "Not whitelisted");
-        require(
-            msg.sender == playerCharacters.ownerOf(_playerID),
-            "Only player owner"
-        );
-        for (uint i; i < _ids.length; i++) {
-            _nft.transferFrom(msg.sender, address(this), _ids[i]);
-        }
-        entityStoreERC721.deposit(playerCharacters, _playerID, _nft, _ids);
-    }
-
-    function withdrawNFTs(
-        IERC721 _nft,
-        uint256 _playerID,
-        uint256[] calldata _ids
-    ) public {
-        require(isTokenWhitelisted[address(_nft)], "Not whitelisted");
-        require(
-            msg.sender == playerCharacters.ownerOf(_playerID),
-            "Only player owner"
-        );
-        entityStoreERC721.withdraw(playerCharacters, _playerID, _nft, _ids);
-        for (uint i; i < _ids.length; i++) {
-            _nft.transferFrom(address(this), msg.sender, _ids[i]);
-        }
-    }
+    function getSpawnCost()
 }

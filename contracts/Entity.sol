@@ -25,6 +25,12 @@ contract Entity is
 
     ILocationController public locationController;
 
+    // for nft gen requiring randomness
+    mapping(uint256 id => bytes32 seed) public seed;
+    // for type data, when different nft sets on same contract
+    // use different algos for determining image from id
+    mapping(uint256 id => bytes32 eType) public eType;
+
     constructor(
         string memory name,
         string memory symbol,
@@ -34,10 +40,12 @@ contract Entity is
         locationController = _locationController;
     }
 
-    function mint(
+    function _mint(
         address _to,
-        ILocation _location
-    ) public virtual returns (uint256 id_) {
+        ILocation _location,
+        bytes32 _randWord,
+        bytes32 _eType
+    ) internal virtual returns (uint256 id_) {
         require(
             hasRole(MINTER_ROLE, _msgSender()),
             "JNT: must have manager role to mint"
@@ -50,6 +58,11 @@ contract Entity is
 
         //set location
         locationController.spawn(this, newTokenId, _location);
+
+        //set seed
+        seed[newTokenId] = _randWord;
+        //set entity type
+        eType[newTokenId] = _eType;
 
         //transfer to minter
         _transfer(address(this), _to, newTokenId);
