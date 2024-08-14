@@ -15,16 +15,20 @@ contract CheapRNG {
     mapping(uint256 ID => uint256 blockNumber) public blockNumber;
     mapping(uint256 ID => address requester) public requesters;
 
+    event RequestRandom(uint256 requestID);
+    event FullfillRandom(uint256 requestID, bytes32 randWord);
+
     constructor() {
         // start at 1
         _requestIDTracker.increment();
     }
 
-    function requesetRandom() public returns (uint256 requestID) {
+    function requestRandom() public returns (uint256 requestID) {
         requestID = _requestIDTracker.current();
         _requestIDTracker.increment();
         blockNumber[requestID] = block.number + 1;
         requesters[requestID] = msg.sender;
+        emit RequestRandom(requestID);
     }
 
     function fullfillRandom(
@@ -44,5 +48,6 @@ contract CheapRNG {
         );
         delete blockNumber[requestID];
         delete requesters[requestID];
+        emit FullfillRandom(requestID, randWord);
     }
 }

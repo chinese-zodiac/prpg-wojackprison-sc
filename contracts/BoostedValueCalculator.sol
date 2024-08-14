@@ -14,6 +14,9 @@ contract BoostedValueCalculator is AccessControlEnumerable {
     mapping(bytes32 => EnumerableSet.AddressSet) boostersMul;
     mapping(bytes32 => EnumerableSet.AddressSet) boostersAdd;
 
+    event SetBoosterMul(bytes32 keyHash, IBooster booster, bool isValid);
+    event SetBoosterAdd(bytes32 keyHash, IBooster booster, bool isValid);
+
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(BOOSTER_MANAGER, msg.sender);
@@ -75,10 +78,12 @@ contract BoostedValueCalculator is AccessControlEnumerable {
         if (isValid) {
             for (uint i; i < _boosters.length; i++) {
                 boostersMul[keyHash].add(address(_boosters[i]));
+                emit SetBoosterMul(keyHash, _boosters[i], isValid);
             }
         } else {
             for (uint i; i < _boosters.length; i++) {
                 boostersMul[keyHash].remove(address(_boosters[i]));
+                emit SetBoosterMul(keyHash, _boosters[i], isValid);
             }
         }
         if (boostersMul[keyHash].length() + boostersAdd[keyHash].length() > 0) {
@@ -115,10 +120,12 @@ contract BoostedValueCalculator is AccessControlEnumerable {
         if (isValid) {
             for (uint i; i < _boosters.length; i++) {
                 boostersAdd[keyHash].add(address(_boosters[i]));
+                emit SetBoosterAdd(keyHash, _boosters[i], isValid);
             }
         } else {
             for (uint i; i < _boosters.length; i++) {
                 boostersAdd[keyHash].remove(address(_boosters[i]));
+                emit SetBoosterAdd(keyHash, _boosters[i], isValid);
             }
         }
         if (boostersMul[keyHash].length() + boostersAdd[keyHash].length() > 0) {

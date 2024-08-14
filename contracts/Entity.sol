@@ -43,8 +43,8 @@ contract Entity is
     function _mint(
         address _to,
         ILocation _location,
-        bytes32 _randWord,
-        bytes32 _eType
+        bytes32 _eType,
+        bytes32 _randWord
     ) internal virtual returns (uint256 id_) {
         require(
             hasRole(MINTER_ROLE, _msgSender()),

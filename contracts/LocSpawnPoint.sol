@@ -25,7 +25,9 @@ contract LocSpawnPoint is LocationBase {
         IERC20 token;
         uint256 wad;
     }
-    mapping(PlayerCharacters.PLAYER_TYPE pType => SpawnCost spawnCost) public spawnCosts;
+    //TODO: fix spawncosts
+    //mapping(PlayerCharacters.PLAYER_TYPE pType => SpawnCost spawnCost)
+    //    public spawnCosts;
 
     constructor(
         ILocationController _locationController,
@@ -54,9 +56,9 @@ contract LocSpawnPoint is LocationBase {
         _token.approve(address(entityStoreERC20), type(uint256).max);
     }
 
-    function spawnPlayerCharacter(PlayerCharacters.PLAYER_TYPE pType) public {
+    /*function spawnPlayerCharacter(PlayerCharacters.PLAYER_TYPE pType) public {
         playerCharacters.mint(msg.sender, ILocation(this));
-    }
+    }*/
 
     function depositIERC20(
         IERC20 _token,
@@ -85,6 +87,6 @@ contract LocSpawnPoint is LocationBase {
         entityStoreERC20.withdraw(playerCharacters, _playerID, _token, _wad);
         _token.safeTransfer(msg.sender, _token.balanceOf(address(this)));
     }
-
-    function getSpawnCost()
+    //TODO: check why getSpawnCost is here, and implement necessary tech
+    //function getSpawnCost()
 }

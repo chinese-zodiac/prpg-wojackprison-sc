@@ -19,6 +19,7 @@ contract LocationController is ILocationController {
         _;
     }
 
+    event Move(IEntity entity, uint256 entityID, ILocation from, ILocation to);
     //Moves entity from current location to new location.
     //First updates the entity's location, then calls arrival/departure hooks.
     function move(
@@ -38,6 +39,7 @@ contract LocationController is ILocationController {
             "Add failed"
         );
 
+        emit Move(_entity, _entityId, _prev, _dest);
         _prev.LOCATION_CONTROLLER_onDeparture(_entity, _entityId, _dest);
         _dest.LOCATION_CONTROLLER_onArrival(_entity, _entityId, _prev);
     }
@@ -62,6 +64,7 @@ contract LocationController is ILocationController {
             _entityId,
             ILocation(address(0x0))
         );
+        emit Move(_entity, _entityId, ILocation(address(0x0)), _to);
     }
 
     //despawns an entity, so it is no longer tracked as at a specific location.
@@ -85,6 +88,7 @@ contract LocationController is ILocationController {
             _entityId,
             ILocation(address(0x0))
         );
+        emit Move(_entity, _entityId, _prev, ILocation(address(0x0)));
     }
 
     //High gas usage, view only

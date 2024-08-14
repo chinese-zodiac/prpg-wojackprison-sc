@@ -8,6 +8,8 @@ import "./ResourceStakingPool.sol";
 import "./LocWithTokenStore.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+//TODO: check if playerProdDaily is required, if not, remove
+
 abstract contract LocResource is ILocation, PlayerWithStats, LocWithTokenStore {
     using SafeERC20 for IERC20;
 

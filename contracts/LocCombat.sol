@@ -41,6 +41,15 @@ abstract contract LocCombat is
 
     ERC20Burnable public combatToken;
 
+    event AttackResolved(
+        IEntity player,
+        uint256 attackerPlayerID,
+        uint256 defenderPlayerID,
+        IERC20 combatToken,
+        uint256 attackCostWad,
+        uint256 attackWinningsWad
+    );
+
     constructor(ERC20Burnable _combatToken) {
         combatToken = _combatToken;
     }
@@ -114,6 +123,15 @@ abstract contract LocCombat is
                 currentAttack.winnings
             );
         }
+
+        emit AttackResolved(
+            player,
+            attackerPlayerID,
+            defenderPlayerID,
+            combatToken,
+            currentAttack.cost,
+            currentAttack.winnings
+        );
     }
 
     //High gas usage, view only

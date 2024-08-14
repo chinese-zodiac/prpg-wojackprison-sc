@@ -9,6 +9,8 @@ import "./TokenBase.sol";
 
 //import "hardhat/console.sol";
 
+//TODO: Add events
+
 contract ResourceStakingPool is Ownable {
     using SafeERC20 for IERC20;
 

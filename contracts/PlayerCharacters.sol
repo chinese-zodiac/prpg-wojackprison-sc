@@ -51,7 +51,7 @@ contract PlayerCharacters is Entity {
         ILocation _location,
         bytes32 _eType
     ) external onlyRole(MINTER_ROLE) returns (uint256 requestID) {
-        requestID = cheapRNG.requesetRandom();
+        requestID = cheapRNG.requestRandom();
         mintRequests[_to] = requestID;
         pendingEtype[requestID] = _eType;
         pendingLocation[requestID] = _location;
