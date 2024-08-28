@@ -27,11 +27,18 @@ abstract contract LocPrepareMove is
     mapping(uint256 => MovementPreparation) movePreps;
 
     //travelTime is consumed by a booster
-    uint64 public travelTime = 4 hours;
+    uint64 public travelTime;
     bytes32 public constant BOOSTER_PLAYER_TRAVELTIME =
         keccak256(abi.encodePacked("BOOSTER_PLAYER_TRAVELTIME"));
 
-    constructor() {}
+    event SetTravelTime(uint256 travelTime);
+    event SetIsDestinationTimed(ILocation location, bool isTimed);
+    event PrepareMoveTimed(uint256  playerID, ILocation destination, uint64 deadline);
+
+    constructor(uint64 _travelTime) {
+        travelTime = _travelTime;
+        emit SetTravelTime(travelTime);
+    }
 
     function prepareMoveTimed(
         uint256 playerID,
@@ -39,13 +46,15 @@ abstract contract LocPrepareMove is
     ) external onlyLocalEntity(player, playerID) onlyPlayerOwner(playerID) {
         require(isDestinationTimed[destination]);
         movePreps[playerID].destination = destination;
-        movePreps[playerID].readyTimer.setDeadline(
-            uint64(
+        uint64 deadline = uint64(
                 block.timestamp +
                     playerStat(playerID, BOOSTER_PLAYER_TRAVELTIME)
-            )
+            );
+        movePreps[playerID].readyTimer.setDeadline(
+            deadline
         );
         _onPrepareMove(playerID);
+        emit PrepareMoveTimed(playerID, destination, deadline);
     }
 
     function _onPrepareMove(uint256 playerID) internal virtual {}

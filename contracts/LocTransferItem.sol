@@ -16,7 +16,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-contract LocTransferItem is AccessRoleManager, LocationBase {
+abstract contract LocTransferItem is AccessRoleManager, LocationBase {
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.UintSet;
     using Counters for Counters.Counter;
@@ -26,6 +26,9 @@ contract LocTransferItem is AccessRoleManager, LocationBase {
     EntityStoreERC721 public entityStoreERC721;
 
     EnumerableSet.AddressSet transferableItems;
+
+    event AddTransferableItem(address item);
+    event DeleteTransferableItem(address item);
 
     modifier onlyTransferableItem(address item) {
         require(transferableItems.contains(item));
@@ -107,9 +110,11 @@ contract LocTransferItem is AccessRoleManager, LocationBase {
 
     function addTransferableItem(address item) external onlyManager {
         transferableItems.add(item);
+        emit AddTransferableItem(item);
     }
 
     function deleteTransferableItem(address item) external onlyManager {
         transferableItems.remove(item);
+        emit DeleteTransferableItem(item);
     }
 }

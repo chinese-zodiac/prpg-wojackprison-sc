@@ -16,7 +16,7 @@ interface ILocation {
     //Only callable by LOCATION_CONTROLLER
     function LOCATION_CONTROLLER_onDeparture(
         IEntity _entity,
-        uint256 _nftId,
+        uint256 _entityID,
         ILocation _to
     ) external;
 

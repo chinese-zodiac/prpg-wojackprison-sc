@@ -8,8 +8,6 @@ import "./ResourceStakingPool.sol";
 import "./LocWithTokenStore.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-//TODO: check if playerProdDaily is required, if not, remove
-
 abstract contract LocResource is ILocation, PlayerWithStats, LocWithTokenStore {
     using SafeERC20 for IERC20;
 
@@ -26,6 +24,12 @@ abstract contract LocResource is ILocation, PlayerWithStats, LocWithTokenStore {
 
     ResourceStakingPool public resourceStakingPool;
 
+    event SetBaseProdDaily(uint256 baseProdDaily);
+    event SetCurrentProdDaily(uint256 currentProdDaily);
+    event SetPlayerProdDaily(uint256 playerID, uint256 playerProdDaily);
+    event SetResourceStakingPool(ResourceStakingPool resourceStakingPool);
+    event SetResourceToken(TokenBase resourceToken);
+
     constructor(TokenBase _resourceToken, uint256 _baseProdDaily) {
         baseProdDaily = _baseProdDaily;
         currentProdDaily = _baseProdDaily;
@@ -36,6 +40,11 @@ abstract contract LocResource is ILocation, PlayerWithStats, LocWithTokenStore {
             _baseProdDaily / 24 hours,
             address(this)
         );
+
+        emit SetBaseProdDaily(baseProdDaily);
+        emit SetCurrentProdDaily(currentProdDaily);
+        emit SetResourceStakingPool(resourceStakingPool);
+        emit SetResourceToken(resourceToken);
     }
 
     function claimPendingResources(
@@ -103,11 +112,13 @@ abstract contract LocResource is ILocation, PlayerWithStats, LocWithTokenStore {
         ResourceStakingPool to
     ) external onlyRole(MANAGER_ROLE) {
         resourceStakingPool = to;
+        emit SetResourceStakingPool(resourceStakingPool);
     }
 
     function setResourceToken(TokenBase to) external onlyRole(MANAGER_ROLE) {
         resourceToken = to;
         resourceStakingPool.setRewardToken(to);
+        emit SetResourceToken(resourceToken);
     }
 
     function setBaseResourcesPerDay(
@@ -116,6 +127,8 @@ abstract contract LocResource is ILocation, PlayerWithStats, LocWithTokenStore {
         currentProdDaily -= baseProdDaily;
         baseProdDaily = to;
         currentProdDaily += baseProdDaily;
+        emit SetBaseProdDaily(baseProdDaily);
+        emit SetCurrentProdDaily(currentProdDaily);
     }
 
     function _haltPlayerProduction(uint256 playerID) internal {
@@ -124,6 +137,8 @@ abstract contract LocResource is ILocation, PlayerWithStats, LocWithTokenStore {
         resourceStakingPool.withdrawFor(bytes32(playerID));
         currentProdDaily -= playerProdDaily[playerID];
         delete playerProdDaily[playerID];
+        emit SetCurrentProdDaily(currentProdDaily);
+        emit SetPlayerProdDaily(playerID, 0);
     }
 
     function _startPlayerProduction(uint256 playerID) internal {
@@ -136,5 +151,7 @@ abstract contract LocResource is ILocation, PlayerWithStats, LocWithTokenStore {
 
         resourceStakingPool.setRewardPerSecond(currentProdDaily / 24 hours);
         resourceStakingPool.depositFor(bytes32(playerID), pull);
+        emit SetCurrentProdDaily(currentProdDaily);
+        emit SetPlayerProdDaily(playerID, playerProdDaily[playerID]);
     }
 }

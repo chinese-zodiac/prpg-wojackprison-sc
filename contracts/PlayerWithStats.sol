@@ -11,12 +11,17 @@ abstract contract PlayerWithStats is ILocation, AccessRoleManager {
     IEntity public immutable player;
     BoostedValueCalculator public boostedValueCalculator;
 
+    event SetBoostedValueCalculator(
+        BoostedValueCalculator boostedValueCalculator
+    );
+
     constructor(
         IEntity _player,
         BoostedValueCalculator _boostedValueCalculator
     ) {
         player = _player;
         boostedValueCalculator = _boostedValueCalculator;
+        emit SetBoostedValueCalculator(boostedValueCalculator);
     }
 
     modifier onlyPlayerOwner(uint256 playerID) {
@@ -41,5 +46,6 @@ abstract contract PlayerWithStats is ILocation, AccessRoleManager {
         BoostedValueCalculator to
     ) external onlyRole(MANAGER_ROLE) {
         boostedValueCalculator = to;
+        emit SetBoostedValueCalculator(boostedValueCalculator);
     }
 }

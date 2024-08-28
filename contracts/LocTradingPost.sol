@@ -36,6 +36,25 @@ contract LocTradingPost is AccessRoleManager, LocTransferItem {
     Counters.Counter shopItemNextUid;
     mapping(uint256 => ShopItem) public shopItems;
 
+    event SetItemInShop(
+        uint256 id,
+        TokenBase item,
+        TokenBase currency,
+        uint256 pricePerItemWad,
+        uint256 increasePerItemSold
+    );
+    event DeleteItemFromShop(uint256 id);
+    event BuyShopItem(
+        IEntity entity,
+        uint256 entityId,
+        uint256 shopItemId,
+        uint256 quantity,
+        uint256 taxFee,
+        uint256 totalFee
+    );
+    event SetTaxReceiver(address taxReceiver);
+    event SetTaxBPS(uint256 taxBPS);
+
     constructor(
         ILocationController _locationController,
         EntityStoreERC20 _entityStoreERC20,
@@ -51,6 +70,8 @@ contract LocTradingPost is AccessRoleManager, LocTransferItem {
     {
         taxReceiver = _taxReceiver;
         taxBPS = _taxBPS;
+        emit SetTaxReceiver(taxReceiver);
+        emit SetTaxBPS(taxBPS);
     }
 
     function buyShopItem(
@@ -69,6 +90,14 @@ contract LocTradingPost is AccessRoleManager, LocTransferItem {
                 item.totalSold *
                 item.increasePerItemSold)) / 1 ether;
         uint256 taxFee = (totalFee * taxBPS) / 10_000;
+        emit BuyShopItem(
+            entity,
+            entityId,
+            shopItemId,
+            quantity,
+            taxFee,
+            totalFee
+        );
         if (taxFee > 0) {
             entityStoreERC20.withdraw(
                 entity,
@@ -122,6 +151,13 @@ contract LocTradingPost is AccessRoleManager, LocTransferItem {
         uint256 increasePerItemSold
     ) external onlyManager {
         uint256 id = shopItemNextUid.current();
+        emit SetItemInShop(
+            id,
+            item,
+            currency,
+            pricePerItemWad,
+            increasePerItemSold
+        );
         shopItemKeys.add(id);
         shopItems[id].item = item;
         shopItems[id].currency = currency;
@@ -139,6 +175,13 @@ contract LocTradingPost is AccessRoleManager, LocTransferItem {
     ) external onlyManager {
         require(shopItemKeys.length() > index, "index not in shop");
         uint256 id = shopItemKeys.at(index);
+        emit SetItemInShop(
+            id,
+            item,
+            currency,
+            pricePerItemWad,
+            increasePerItemSold
+        );
         shopItems[id].item = item;
         shopItems[id].currency = currency;
         shopItems[id].pricePerItemWad = pricePerItemWad;
@@ -148,6 +191,7 @@ contract LocTradingPost is AccessRoleManager, LocTransferItem {
     function deleteItemFromShop(uint256 index) external onlyManager {
         require(shopItemKeys.length() > index, "index not in shop");
         uint256 id = shopItemKeys.at(index);
+        emit DeleteItemFromShop(id);
         delete shopItems[id].item;
         delete shopItems[id].currency;
         delete shopItems[id].pricePerItemWad;
@@ -159,10 +203,12 @@ contract LocTradingPost is AccessRoleManager, LocTransferItem {
 
     function setTaxReceiver(address _to) external onlyManager {
         taxReceiver = _to;
+        emit SetTaxReceiver(taxReceiver);
     }
 
     function setTaxBPS(uint256 _to) external onlyManager {
         require(_to <= 10_000, "Cannot be more than 10,000 BPS (100%)");
         taxBPS = _to;
+        emit SetTaxBPS(taxBPS);
     }
 }

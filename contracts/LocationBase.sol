@@ -20,6 +20,8 @@ contract LocationBase is ILocation, AccessControlEnumerable {
     EnumerableSet.AddressSet validDestinations;
 
     EnumerableSet.AddressSet validEntities;
+    event OnDeparture(IEntity entity, uint256 entityID, ILocation to);
+    event OnArrival(IEntity entity, uint256 entityID, ILocation from);
 
     constructor(ILocationController _locationController) {
         locationController = _locationController;
@@ -46,18 +48,19 @@ contract LocationBase is ILocation, AccessControlEnumerable {
     //Only callable by LOCATION_CONTROLLER
     function LOCATION_CONTROLLER_onArrival(
         IEntity _entity,
-        uint256, // _entityID,
+        uint256 _entityID,
         ILocation _from
     ) public virtual {
         require(msg.sender == address(locationController), "Sender must be LC");
         require(validSources.contains(address(_from)), "Invalid source");
         require(validEntities.contains(address(_entity)), "Invalid entity");
+        emit OnArrival(_entity, _entityID, _from);
     }
 
     //Only callable by LOCATION_CONTROLLER
     function LOCATION_CONTROLLER_onDeparture(
         IEntity _entity,
-        uint256, // _entityId,
+        uint256 _entityID,
         ILocation _to
     ) public virtual {
         require(msg.sender == address(locationController), "Sender must be LC");
@@ -66,6 +69,7 @@ contract LocationBase is ILocation, AccessControlEnumerable {
             "Invalid destination"
         );
         require(validEntities.contains(address(_entity)), "Invalid entity");
+        emit OnDeparture(_entity, _entityID, _to);
     }
 
     function setValidDestionation(

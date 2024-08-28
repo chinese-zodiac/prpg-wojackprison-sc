@@ -9,8 +9,6 @@ import "./TokenBase.sol";
 
 //import "hardhat/console.sol";
 
-//TODO: Add events
-
 contract ResourceStakingPool is Ownable {
     using SafeERC20 for IERC20;
 
@@ -35,6 +33,13 @@ contract ResourceStakingPool is Ownable {
     // Info of each entity that stakes tokens (stakedToken)
     mapping(bytes32 => EntityInfo) public entityInfo;
 
+    event Deposit(bytes32 entityId, uint256 shares);
+    event Withdraw(bytes32 entityId, uint256 shares);
+    event Claim(bytes32 entityId, uint256 pending);
+    event Update(uint256 accTokenPerShare);
+    event SetRPS(uint256 rewardPerSecond);
+    event SetRewardToken(TokenBase rewardToken);
+
     struct EntityInfo {
         uint256 shares; // How many shares in the pool the user owns
         uint256 rewardDebt; // Reward debt
@@ -48,6 +53,8 @@ contract ResourceStakingPool is Ownable {
         rewardToken = _rewardToken;
         rewardPerSecond = _rewardPerSecond;
         timestampLast = block.timestamp;
+        emit SetRewardToken(rewardToken);
+        emit SetRPS(rewardPerSecond);
 
         PRECISION_FACTOR = uint256(
             10 **
@@ -60,6 +67,7 @@ contract ResourceStakingPool is Ownable {
         bytes32 entityId,
         uint256 shares
     ) public onlyOwner returns (uint256 claim) {
+        emit Deposit(entityId, shares);
         EntityInfo storage entity = entityInfo[entityId];
 
         _updatePool();
@@ -71,6 +79,7 @@ contract ResourceStakingPool is Ownable {
             if (pending > 0) {
                 rewardToken.mint(owner(), pending);
                 claim = pending;
+                emit Claim(entityId, pending);
             }
         }
 
@@ -102,6 +111,7 @@ contract ResourceStakingPool is Ownable {
         if (pending > 0) {
             rewardToken.mint(owner(), pending);
             claim = pending;
+            emit Claim(entityId, pending);
         }
 
         entity.rewardDebt =
@@ -162,6 +172,7 @@ contract ResourceStakingPool is Ownable {
         EntityInfo storage entity = entityInfo[entityId];
 
         uint256 shares = entity.shares;
+        emit Withdraw(entityId, shares);
 
         _updatePool();
 
@@ -177,6 +188,7 @@ contract ResourceStakingPool is Ownable {
         if (pending > 0) {
             rewardToken.mint(owner(), pending);
             claim = pending;
+            emit Claim(entityId, pending);
         }
 
         entity.rewardDebt =
@@ -201,6 +213,7 @@ contract ResourceStakingPool is Ownable {
             accTokenPerShare +
             ((rewardWad * PRECISION_FACTOR) / totalShares);
         timestampLast = block.timestamp;
+        emit Update(accTokenPerShare);
     }
 
     function getShares(bytes32 _entityId) external view returns (uint256) {
@@ -210,9 +223,11 @@ contract ResourceStakingPool is Ownable {
     function setRewardPerSecond(uint256 to) external onlyOwner {
         _updatePool();
         rewardPerSecond = to;
+        emit SetRPS(rewardPerSecond);
     }
 
     function setRewardToken(TokenBase to) external onlyOwner {
         rewardToken = to;
+        emit SetRewardToken(rewardToken);
     }
 }

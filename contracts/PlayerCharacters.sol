@@ -21,6 +21,16 @@ contract PlayerCharacters is Entity {
     mapping(uint256 requestID => ILocation location) public pendingLocation;
     mapping(uint256 requestID => address receiver) public pendingReceiver;
 
+    event SetIPFSMetadataHash(uint256 playerID, string ipfsHash);
+    event RequestMint(
+        uint256 requestID,
+        address to,
+        ILocation location,
+        bytes32 eType
+    );
+    event FinalizeMint(uint256 requestID, uint256 nftID, bytes32 randWord);
+    event SetCheapRNG(CheapRNG cheapRNG);
+
     constructor(
         ILocationController _locationController,
         string memory name,
@@ -28,6 +38,7 @@ contract PlayerCharacters is Entity {
         CheapRNG _cheapRNG
     ) Entity(name, symbol, _locationController) {
         cheapRNG = _cheapRNG;
+        emit SetCheapRNG(cheapRNG);
     }
 
     function tokenURI(
@@ -43,6 +54,7 @@ contract PlayerCharacters is Entity {
         uint256 count = playerIDs.length;
         for (uint i = 0; i < count; i++) {
             metadataIpfsHash[playerIDs[i]] = ipfsHashes[i];
+            emit SetIPFSMetadataHash(playerIDs[i], ipfsHashes[i]);
         }
     }
 
@@ -52,6 +64,7 @@ contract PlayerCharacters is Entity {
         bytes32 _eType
     ) external onlyRole(MINTER_ROLE) returns (uint256 requestID) {
         requestID = cheapRNG.requestRandom();
+        emit RequestMint(requestID, _to, _location, _eType);
         mintRequests[_to] = requestID;
         pendingEtype[requestID] = _eType;
         pendingLocation[requestID] = _location;
@@ -61,12 +74,14 @@ contract PlayerCharacters is Entity {
     function finalizeMint(
         uint256 requestID
     ) external onlyRole(MINTER_ROLE) returns (uint256 nftID) {
+        bytes32 randWord = cheapRNG.fullfillRandom(requestID);
         nftID = _mint(
             pendingReceiver[requestID],
             pendingLocation[requestID],
             pendingEtype[requestID],
-            cheapRNG.fullfillRandom(requestID)
+            randWord
         );
+        emit FinalizeMint(requestID, nftID, randWord);
         delete pendingEtype[requestID];
         delete pendingLocation[requestID];
         delete pendingReceiver[requestID];
@@ -74,5 +89,6 @@ contract PlayerCharacters is Entity {
 
     function setCheapRNG(CheapRNG _to) external onlyRole(DEFAULT_ADMIN_ROLE) {
         cheapRNG = _to;
+        emit SetCheapRNG(cheapRNG);
     }
 }

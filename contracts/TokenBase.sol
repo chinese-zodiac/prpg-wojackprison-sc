@@ -23,6 +23,12 @@ contract TokenBase is ERC20PresetMinterPauser, IERC20MetadataLogo {
     uint256 public sellBurnBps = 450;
     uint256 public maxBurnBps = 10000;
 
+    event SetBurnBps(uint256 buyBurnBps, uint256 sellBurnBps);
+    event SetIsExempt(address account, bool to);
+    event SetLogoUri(string ipfsCid);
+    event SetAmmPair(IAmmPair ammCzusdPair);
+    event SetMaxBurnBps(uint256 maxBurnBps);
+
     constructor(
         address admin,
         string memory name,
@@ -30,6 +36,9 @@ contract TokenBase is ERC20PresetMinterPauser, IERC20MetadataLogo {
     ) ERC20PresetMinterPauser(name, ticker, admin) {
         _grantRole(MANAGER_ROLE, admin);
         isExempt[address(0x0)] = true; //no tax for mints and burns
+        emit SetBurnBps(buyBurnBps, sellBurnBps);
+        emit SetIsExempt(address(0x0), true);
+        emit SetMaxBurnBps(maxBurnBps);
     }
 
     function _update(
@@ -68,6 +77,7 @@ contract TokenBase is ERC20PresetMinterPauser, IERC20MetadataLogo {
     ) public onlyRole(MANAGER_ROLE) {
         buyBurnBps = _onBuy;
         sellBurnBps = _onSell;
+        emit SetBurnBps(buyBurnBps, sellBurnBps);
     }
 
     function setIsExempt(address _for, bool _to) public onlyRole(MANAGER_ROLE) {
@@ -78,6 +88,7 @@ contract TokenBase is ERC20PresetMinterPauser, IERC20MetadataLogo {
         string calldata ipfsCid
     ) external onlyRole(MANAGER_ROLE) {
         logoUri = string.concat("ipfs://", ipfsCid);
+        emit SetLogoUri(ipfsCid);
     }
 
     function spawnAmmPair(
@@ -88,14 +99,17 @@ contract TokenBase is ERC20PresetMinterPauser, IERC20MetadataLogo {
         ammCzusdPair = IAmmPair(
             _factory.createPair(address(this), address(_czusd))
         );
+        emit SetAmmPair(ammCzusdPair);
     }
 
     function setAmmPair(IAmmPair _to) public onlyRole(DEFAULT_ADMIN_ROLE) {
         ammCzusdPair = _to;
+        emit SetAmmPair(ammCzusdPair);
     }
 
     function setMaxBurnBps(uint256 _to) public onlyRole(DEFAULT_ADMIN_ROLE) {
         maxBurnBps = _to;
+        emit SetMaxBurnBps(maxBurnBps);
     }
 
     function recoverERC20(
