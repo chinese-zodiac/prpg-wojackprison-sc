@@ -14,8 +14,10 @@ contract LocationWorldResource is LocPrepareMove, LocCombat, LocResource {
         uint256 _baseProdDaily,
         ERC20Burnable _combatToken,
         EntityStoreERC20 _entityStoreERC20,
-        EntityStoreERC721 _entityStoreERC721
+        EntityStoreERC721 _entityStoreERC721,
+        uint64 _travelTime
     )
+        LocPrepareMove(_travelTime)
         LocResource(_resourceToken, _baseProdDaily)
         LocCombat(_combatToken)
         LocWithTokenStore(_entityStoreERC20, _entityStoreERC721)
