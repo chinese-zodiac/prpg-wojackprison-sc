@@ -4,6 +4,7 @@
 pragma solidity ^0.8.19;
 import "./ILocation.sol";
 import "./IEntity.sol";
+import {EnumerableSetAccessControlViewableAddress} from "../utils/EnumerableSetAccessControlViewableAddress.sol";
 
 interface ILocation {
     //Only callable by LOCATION_CONTROLLER
@@ -20,32 +21,15 @@ interface ILocation {
         ILocation _to
     ) external;
 
-    function viewOnly_getAllValidSources()
+    function validSourceSet()
         external
-        view
-        returns (address[] memory locations_);
-
-    function getValidSourceCount() external view returns (uint256);
-
-    function getValidSourceAt(uint256 _i) external view returns (ILocation);
-
-    function viewOnly_getAllValidDestinations()
+        returns (EnumerableSetAccessControlViewableAddress validSourceSet_);
+    function validDestinationSet()
         external
-        view
-        returns (address[] memory locations_);
-
-    function getValidDestinationCount() external view returns (uint256);
-
-    function getValidDestinationAt(
-        uint256 _i
-    ) external view returns (ILocation);
-
-    function viewOnly_getAllValidEntities()
+        returns (
+            EnumerableSetAccessControlViewableAddress validDestinationSet_
+        );
+    function validEntitySet()
         external
-        view
-        returns (address[] memory entities_);
-
-    function getValidEntitiesCount() external view returns (uint256);
-
-    function getValidEntitiesAt(uint256 _i) external view returns (IEntity);
+        returns (EnumerableSetAccessControlViewableAddress validEntitySet_);
 }

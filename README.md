@@ -5,7 +5,5 @@ Foundry project for Wojack Prison smart contracts. To contribute, message t.me/c
 `forge install`
 `forge build`
 
-# TODO
-
 - Add tests for the Trading Post
 - Edit combat to require/consume items (IERC20)

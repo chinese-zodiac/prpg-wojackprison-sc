@@ -1,13 +1,29 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
-pragma solidity >=0.8.19;
-import "../LocResource.sol";
-import "../LocCombat.sol";
-import "../LocPrepareMove.sol";
+pragma solidity ^0.8.23;
+import {ILocationController} from "../interfaces/ILocationController.sol";
+import {ILocation} from "../interfaces/ILocation.sol";
+import {IEntity} from "../interfaces/IEntity.sol";
+import {BoostedValueCalculator} from "../BoostedValueCalculator.sol";
+import {TokenBase} from "../TokenBase.sol";
+import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
+import {EntityStoreERC20} from "../EntityStoreERC20.sol";
+import {EntityStoreERC721} from "../EntityStoreERC721.sol";
+import {LocWithTokenStore} from "../LocWithTokenStore.sol";
+import {LocationBase} from "../LocationBase.sol";
+import {LocPlayerWithStats} from "../LocPlayerWithStats.sol";
+import {LocResource} from "../LocResource.sol";
+import {LocCombat} from "../LocCombat.sol";
+import {LocPrepareMove} from "../LocPrepareMove.sol";
+import {LocWithTokenStore} from "../LocWithTokenStore.sol";
+import {EnumerableSetAccessControlViewableAddress} from "../utils/EnumerableSetAccessControlViewableAddress.sol";
 
 contract LocationWorldResource is LocPrepareMove, LocCombat, LocResource {
     constructor(
         ILocationController _locationController,
+        EnumerableSetAccessControlViewableAddress _validSourceSet,
+        EnumerableSetAccessControlViewableAddress _validDestinationSet,
+        EnumerableSetAccessControlViewableAddress _validEntitySet,
         IEntity _player,
         BoostedValueCalculator _boostedValueCalculator,
         TokenBase _resourceToken,
@@ -20,9 +36,14 @@ contract LocationWorldResource is LocPrepareMove, LocCombat, LocResource {
         LocPrepareMove(_travelTime)
         LocResource(_resourceToken, _baseProdDaily)
         LocCombat(_combatToken)
+        LocPlayerWithStats(_player, _boostedValueCalculator)
+        LocationBase(
+            _locationController,
+            _validSourceSet,
+            _validDestinationSet,
+            _validEntitySet
+        )
         LocWithTokenStore(_entityStoreERC20, _entityStoreERC721)
-        PlayerWithStats(_player, _boostedValueCalculator)
-        LocationBase(_locationController)
     {}
 
     //Only callable by LOCATION_CONTROLLER
@@ -48,6 +69,10 @@ contract LocationWorldResource is LocPrepareMove, LocCombat, LocResource {
         LocationBase.LOCATION_CONTROLLER_onDeparture(_entity, _entityID, _to);
         LocResource.LOCATION_CONTROLLER_onDeparture(_entity, _entityID, _to);
         LocPrepareMove.LOCATION_CONTROLLER_onDeparture(_entity, _entityID, _to);
+    }
+
+    function _onPrepareMove(uint256 playerID) internal override {
+        _haltPlayerProduction(playerID);
     }
 
     function attack(

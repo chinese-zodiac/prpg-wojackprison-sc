@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
-pragma solidity >=0.8.19;
+pragma solidity ^0.8.23;
 
-import "./EntityStoreERC20.sol";
-import "./EntityStoreERC721.sol";
+import {EntityStoreERC20} from "./EntityStoreERC20.sol";
+import {EntityStoreERC721} from "./EntityStoreERC721.sol";
 
 contract LocWithTokenStore {
     EntityStoreERC20 public immutable entityStoreERC20;

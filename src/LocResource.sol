@@ -1,20 +1,31 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
-pragma solidity >=0.8.19;
+pragma solidity ^0.8.23;
 
-import "./PlayerWithStats.sol";
-import "./interfaces/IEntity.sol";
-import "./ResourceStakingPool.sol";
-import "./LocWithTokenStore.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {TokenBase} from "./TokenBase.sol";
+import {LocPlayerWithStats} from "./LocPlayerWithStats.sol";
+import {ILocation} from "./interfaces/ILocation.sol";
+import {IEntity} from "./interfaces/IEntity.sol";
+import {ResourceStakingPool} from "./ResourceStakingPool.sol";
+import {LocWithTokenStore} from "./LocWithTokenStore.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-abstract contract LocResource is ILocation, PlayerWithStats, LocWithTokenStore {
+abstract contract LocResource is
+    ILocation,
+    LocPlayerWithStats,
+    LocWithTokenStore
+{
     using SafeERC20 for IERC20;
 
-    bytes32 public constant BOOSTER_PLAYER_PULL =
-        keccak256(abi.encodePacked("BOOSTER_PLAYER_PULL"));
-    bytes32 public constant BOOSTER_PLAYER_PROD_DAILY =
-        keccak256(abi.encodePacked("BOOSTER_PLAYER_PROD_DAILY"));
+    bytes32 public constant BOOSTER_PLAYER_PULL_ADD =
+        keccak256(abi.encodePacked("BOOSTER_PLAYER_PULL_ADD"));
+    bytes32 public constant BOOSTER_PLAYER_PULL_MUL =
+        keccak256(abi.encodePacked("BOOSTER_PLAYER_PULL_MUL"));
+    bytes32 public constant BOOSTER_PLAYER_PROD_DAILY_ADD =
+        keccak256(abi.encodePacked("BOOSTER_PLAYER_PROD_DAILY_ADD"));
+    bytes32 public constant BOOSTER_PLAYER_PROD_DAILY_MUL =
+        keccak256(abi.encodePacked("BOOSTER_PLAYER_PROD_DAILY_MUL"));
 
     TokenBase public resourceToken;
 
@@ -62,7 +73,7 @@ abstract contract LocResource is ILocation, PlayerWithStats, LocWithTokenStore {
         uint256 deltabal = resourceToken.balanceOf(address(this)) -
             initialResourceBal;
         resourceToken.approve(address(entityStoreERC20), deltabal);
-        entityStoreERC20.deposit(player, playerID, resourceToken, deltabal);
+        entityStoreERC20.deposit(PLAYER, playerID, resourceToken, deltabal);
     }
 
     //Only callable by LOCATION_CONTROLLER
@@ -71,7 +82,7 @@ abstract contract LocResource is ILocation, PlayerWithStats, LocWithTokenStore {
         uint256 _entityId,
         ILocation //_from
     ) public virtual override {
-        if (_entity == player) {
+        if (_entity == PLAYER) {
             _startPlayerProduction(_entityId);
         }
     }
@@ -82,7 +93,7 @@ abstract contract LocResource is ILocation, PlayerWithStats, LocWithTokenStore {
         uint256 _entityId,
         ILocation //_to
     ) public virtual override {
-        if (_entity == player) {
+        if (_entity == PLAYER) {
             _haltPlayerProduction(_entityId);
         }
     }
@@ -142,10 +153,15 @@ abstract contract LocResource is ILocation, PlayerWithStats, LocWithTokenStore {
     }
 
     function _startPlayerProduction(uint256 playerID) internal {
-        uint256 pull = playerStat(playerID, BOOSTER_PLAYER_PULL);
+        uint256 pull = playerStat(
+            playerID,
+            BOOSTER_PLAYER_PULL_ADD,
+            BOOSTER_PLAYER_PULL_MUL
+        );
         playerProdDaily[playerID] = playerStat(
             playerID,
-            BOOSTER_PLAYER_PROD_DAILY
+            BOOSTER_PLAYER_PROD_DAILY_ADD,
+            BOOSTER_PLAYER_PROD_DAILY_MUL
         );
         currentProdDaily += playerProdDaily[playerID];
 

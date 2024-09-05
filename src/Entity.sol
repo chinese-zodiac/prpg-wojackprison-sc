@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity >=0.8.19;
+pragma solidity ^0.8.23;
 
-import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
-import "./libs/Counters.sol";
-import "@openzeppelin/contracts/utils/Address.sol";
-import "./interfaces/IEntity.sol";
-import "./interfaces/ILocation.sol";
-import "./interfaces/ILocationController.sol";
+import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {ERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import {ERC721Burnable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
+import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
+import {IERC721Enumerable} from "@openzeppelin/contracts/interfaces/IERC721Enumerable.sol";
+import {Counters} from "./libs/Counters.sol";
+import {IEntity} from "./interfaces/IEntity.sol";
+import {ILocation} from "./interfaces/ILocation.sol";
+import {ILocationController} from "./interfaces/ILocationController.sol";
 
 contract Entity is
     IEntity,
@@ -25,11 +26,12 @@ contract Entity is
 
     ILocationController public locationController;
 
-    // for nft gen requiring randomness
-    mapping(uint256 id => bytes32 seed) public seed;
-    // for type data, when different nft sets on same contract
-    // use different algos for determining image from id
-    mapping(uint256 id => bytes32 eType) public eType;
+    struct EntityInfo {
+        bytes32 seed; //Random seed used to determine nft stats on 3rd contracts
+        bytes32 eType; //Used for nfts with different types, for instance beta/free/paid
+    }
+
+    mapping(uint256 id => EntityInfo info) public entityInfo;
 
     constructor(
         string memory name,
@@ -56,15 +58,13 @@ contract Entity is
         uint256 newTokenId = _tokenIdTracker.current();
         _mint(address(this), newTokenId);
 
-        //set location
         locationController.spawn(this, newTokenId, _location);
 
-        //set seed
-        seed[newTokenId] = _randWord;
-        //set entity type
-        eType[newTokenId] = _eType;
+        EntityInfo storage info = entityInfo[newTokenId];
 
-        //transfer to minter
+        info.seed = _randWord;
+        info.eType = _eType;
+
         _transfer(address(this), _to, newTokenId);
 
         _tokenIdTracker.increment();
@@ -75,9 +75,16 @@ contract Entity is
     function burn(
         uint256 _nftId
     ) public virtual override(IEntity, ERC721Burnable) {
-        //unregister location
         locationController.despawn(this, _nftId);
         ERC721Burnable.burn(_nftId);
+    }
+
+    function seed(uint256 _nftId) external view returns (bytes32 _seed) {
+        _seed = entityInfo[_nftId].seed;
+    }
+
+    function eType(uint256 _nftId) external view returns (bytes32 _eType) {
+        _eType = entityInfo[_nftId].eType;
     }
 
     function supportsInterface(

@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
-pragma solidity >=0.8.19;
+pragma solidity ^0.8.23;
 
-import "./LocationBase.sol";
-import "./LocWithTokenStore.sol";
-import "./PlayerWithStats.sol";
-import "./libs/Timers.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {IEntity} from "./interfaces/IEntity.sol";
+import {ILocation} from "./interfaces/ILocation.sol";
+import {LocationBase} from "./LocationBase.sol";
+import {LocWithTokenStore} from "./LocWithTokenStore.sol";
+import {LocPlayerWithStats} from "./LocPlayerWithStats.sol";
+import {Timers} from "./libs/Timers.sol";
 
 abstract contract LocPrepareMove is
     LocationBase,
-    PlayerWithStats,
+    LocPlayerWithStats,
     LocWithTokenStore
 {
     using Timers for Timers.Timestamp;
-    using EnumerableSet for EnumerableSet.AddressSet;
-    using SafeERC20 for IERC20;
 
     mapping(ILocation location => bool isTimed) public isDestinationTimed;
 
@@ -24,40 +22,72 @@ abstract contract LocPrepareMove is
         Timers.Timestamp readyTimer;
         ILocation destination;
     }
-    mapping(uint256 => MovementPreparation) movePreps;
+    mapping(uint256 playerID => MovementPreparation preparation)
+        internal movePreps;
 
     //travelTime is consumed by a booster
     uint64 public travelTime;
-    bytes32 public constant BOOSTER_PLAYER_TRAVELTIME =
-        keccak256(abi.encodePacked("BOOSTER_PLAYER_TRAVELTIME"));
+    bytes32 public constant BOOSTER_PLAYER_TRAVELTIME_ADD =
+        keccak256(abi.encodePacked("BOOSTER_PLAYER_TRAVELTIME_ADD"));
+    bytes32 public constant BOOSTER_PLAYER_TRAVELTIME_MUL =
+        keccak256(abi.encodePacked("BOOSTER_PLAYER_TRAVELTIME_MUL"));
 
     event SetTravelTime(uint256 travelTime);
     event SetIsDestinationTimed(ILocation location, bool isTimed);
-    event PrepareMoveTimed(uint256  playerID, ILocation destination, uint64 deadline);
+    event PrepareMoveTimed(
+        uint256 playerID,
+        ILocation destination,
+        uint64 deadline
+    );
+
+    error OnlyTimedDestination(ILocation destination);
+    error NotReadyToMove(
+        IEntity entity,
+        uint256 entityID,
+        ILocation destination
+    );
+    error WrongTimedDestination(
+        IEntity entity,
+        uint256 entityID,
+        ILocation destination
+    );
 
     constructor(uint64 _travelTime) {
         travelTime = _travelTime;
         emit SetTravelTime(travelTime);
     }
 
+    modifier onlyTimedDestination(ILocation destination) {
+        if (!isDestinationTimed[destination]) {
+            revert OnlyTimedDestination(destination);
+        }
+        _;
+    }
+
     function prepareMoveTimed(
         uint256 playerID,
         ILocation destination
-    ) external onlyLocalEntity(player, playerID) onlyPlayerOwner(playerID) {
-        require(isDestinationTimed[destination]);
+    )
+        external
+        onlyLocalEntity(PLAYER, playerID)
+        onlyPlayerOwner(playerID)
+        onlyTimedDestination(destination)
+    {
         movePreps[playerID].destination = destination;
         uint64 deadline = uint64(
-                block.timestamp +
-                    playerStat(playerID, BOOSTER_PLAYER_TRAVELTIME)
-            );
-        movePreps[playerID].readyTimer.setDeadline(
-            deadline
+            block.timestamp +
+                playerStat(
+                    playerID,
+                    BOOSTER_PLAYER_TRAVELTIME_ADD,
+                    BOOSTER_PLAYER_TRAVELTIME_MUL
+                )
         );
+        movePreps[playerID].readyTimer.setDeadline(deadline);
         _onPrepareMove(playerID);
         emit PrepareMoveTimed(playerID, destination, deadline);
     }
 
-    function _onPrepareMove(uint256 playerID) internal virtual {}
+    function _onPrepareMove(uint256 playerID) internal virtual;
 
     //Only callable by LOCATION_CONTROLLER
     function LOCATION_CONTROLLER_onDeparture(
@@ -65,16 +95,14 @@ abstract contract LocPrepareMove is
         uint256 _entityID,
         ILocation _to
     ) public virtual override(ILocation, LocationBase) {
-        if (isDestinationTimed[_to] && _entity == player) {
+        if (isDestinationTimed[_to] && _entity == PLAYER) {
             //timed destination checks
-            require(
-                movePreps[_entityID].readyTimer.isExpired(),
-                "Player not ready to move"
-            );
-            require(
-                _to == movePreps[_entityID].destination,
-                "Player not prepared to travel there"
-            );
+            if (!movePreps[_entityID].readyTimer.isExpired()) {
+                revert NotReadyToMove(_entity, _entityID, _to);
+            }
+            if (_to != movePreps[_entityID].destination) {
+                revert WrongTimedDestination(_entity, _entityID, _to);
+            }
             //reset timer
             movePreps[_entityID].readyTimer.reset();
         }
@@ -107,9 +135,25 @@ abstract contract LocPrepareMove is
     function setTimedDestination(
         ILocation[] calldata _destinations,
         bool isTimed
-    ) public onlyRole(VALID_ROUTE_SETTER) {
-        setValidDestionation(_destinations, isTimed);
-        for (uint i; i < _destinations.length; i++) {
+    ) public {
+        if (
+            !validDestinationSet.hasRole(
+                validDestinationSet.MANAGER_ROLE(),
+                msg.sender
+            )
+        ) {
+            revert AccessControlUnauthorizedAccount(
+                msg.sender,
+                validDestinationSet.MANAGER_ROLE()
+            );
+        }
+        for (uint256 i; i < _destinations.length; i++) {
+            if (
+                isTimed &&
+                !validDestinationSet.getContains(address(_destinations[i]))
+            ) {
+                validDestinationSet.add(address(_destinations[i]));
+            }
             isDestinationTimed[_destinations[i]] = isTimed;
         }
     }

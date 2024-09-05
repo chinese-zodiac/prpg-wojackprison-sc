@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
-pragma solidity >=0.8.19;
+pragma solidity ^0.8.23;
 
-import "./interfaces/IBooster.sol";
-import "./EntityStoreERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IBooster} from "./interfaces/IBooster.sol";
+import {EntityStoreERC20} from "./EntityStoreERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IEntity} from "./interfaces/IEntity.sol";
+import {ILocation} from "./interfaces/ILocation.sol";
 
 contract BoosterIERC20Bal is IBooster {
     IERC20 public immutable token;

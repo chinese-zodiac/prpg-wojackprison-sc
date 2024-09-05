@@ -19,7 +19,9 @@ import "./interfaces/IAmmPair.sol";
 //Update settings with a admin account NOT deployer
 
 //IMPORTANT WARNING:
-//This contract implements methods that seem unecessary, and are not in the inherited interfaces, but are actually part of undocumented interfaces that the optimism sdk requires.
+//This contract implements methods that seem unecessary
+//and are not in the inherited interfaces, but are
+//actually part of undocumented interfaces that the optimism sdk requires.
 //Newer dapps should not need these, but forks must implement.
 contract TokenBaseOptimism is
     IOptimismMintableERC20,

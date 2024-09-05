@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
-pragma solidity >=0.8.19;
+pragma solidity ^0.8.23;
 
 import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import "./presets/ERC20PresetMinterPauser.sol";
@@ -12,7 +12,7 @@ import "./interfaces/IAmmPair.sol";
 
 contract TokenBase is ERC20PresetMinterPauser, IERC20MetadataLogo {
     using SafeERC20 for IERC20;
-    mapping(address => bool) public isExempt;
+    mapping(address account => bool isExempt) public isExempt;
 
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 

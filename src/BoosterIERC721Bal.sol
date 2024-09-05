@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
-pragma solidity >=0.8.19;
+pragma solidity ^0.8.23;
 
-import "./interfaces/IBooster.sol";
-import "./EntityStoreERC721.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IBooster} from "./interfaces/IBooster.sol";
+import {EntityStoreERC721} from "./EntityStoreERC721.sol";
+import {IEntity} from "./interfaces/IEntity.sol";
+import {ILocation} from "./interfaces/ILocation.sol";
+import {IERC721} from "@openzeppelin/contracts/interfaces/IERC721.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract BoosterIERC721Bal is IBooster {
     IERC721 public immutable nft;
@@ -27,10 +30,8 @@ contract BoosterIERC721Bal is IBooster {
         IEntity entity,
         uint256 entityId
     ) external view returns (uint256 boost) {
-        return (entityStoreERC721.getStoredERC721CountFor(
-            entity,
-            entityId,
-            nft
-        ) * bps);
+        return (entityStoreERC721
+            .entityStoredERC721Ids(entity, entityId, nft)
+            .getLength() * bps);
     }
 }

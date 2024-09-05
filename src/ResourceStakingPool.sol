@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
 // Credit to Olive.cash, Pancakeswap
-pragma solidity ^0.8.4;
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "./TokenBase.sol";
+pragma solidity ^0.8.23;
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {TokenBase} from "./TokenBase.sol";
 
 //import "hardhat/console.sol";
 
@@ -31,7 +32,7 @@ contract ResourceStakingPool is Ownable {
     uint256 public totalShares;
 
     // Info of each entity that stakes tokens (stakedToken)
-    mapping(bytes32 => EntityInfo) public entityInfo;
+    mapping(bytes32 entityID => EntityInfo entityInfo) public entityInfo;
 
     event Deposit(bytes32 entityId, uint256 shares);
     event Withdraw(bytes32 entityId, uint256 shares);

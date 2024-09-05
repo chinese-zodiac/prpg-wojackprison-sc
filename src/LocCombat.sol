@@ -1,28 +1,33 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
-pragma solidity >=0.8.19;
-import "./LocationBase.sol";
-import "./LocWithTokenStore.sol";
-import "./PlayerWithStats.sol";
-import "./libs/Timers.sol";
-import "./libs/Counters.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+pragma solidity ^0.8.23;
+
+import {IEntity} from "./interfaces/IEntity.sol";
+import {LocationBase} from "./LocationBase.sol";
+import {LocWithTokenStore} from "./LocWithTokenStore.sol";
+import {LocPlayerWithStats} from "./LocPlayerWithStats.sol";
+import {Timers} from "./libs/Timers.sol";
+import {Counters} from "./libs/Counters.sol";
+import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 
 abstract contract LocCombat is
     LocationBase,
-    PlayerWithStats,
+    LocPlayerWithStats,
     LocWithTokenStore
 {
     using Counters for Counters.Counter;
     using Timers for Timers.Timestamp;
-    using SafeERC20 for IERC20;
 
-    bytes32 public constant BOOSTER_PLAYER_POWER =
-        keccak256(abi.encodePacked("BOOSTER_PLAYER_POWER"));
-    bytes32 public constant BOOSTER_PLAYER_ATKCD =
-        keccak256(abi.encodePacked("BOOSTER_PLAYER_ATKCD"));
-    mapping(uint256 => Timers.Timestamp) public playerAttackTimer;
+    bytes32 public constant BOOSTER_PLAYER_POWER_ADD =
+        keccak256(abi.encodePacked("BOOSTER_PLAYER_POWER_ADD"));
+    bytes32 public constant BOOSTER_PLAYER_POWER_MUL =
+        keccak256(abi.encodePacked("BOOSTER_PLAYER_POWER_MUL"));
+    bytes32 public constant BOOSTER_PLAYER_ATKCD_ADD =
+        keccak256(abi.encodePacked("BOOSTER_PLAYER_ATKCD_ADD"));
+    bytes32 public constant BOOSTER_PLAYER_ATKCD_MUL =
+        keccak256(abi.encodePacked("BOOSTER_PLAYER_ATKCD_MUL"));
+    mapping(uint256 attackID => Timers.Timestamp attackTimer)
+        public playerAttackTimer;
 
     //attackCD is consumed by a booster
     uint64 public attackCooldown = 4 hours;
@@ -36,7 +41,7 @@ abstract contract LocCombat is
         uint256 winnings;
         uint256 time;
     }
-    mapping(uint256 => Attack) attackLog;
+    mapping(uint256 attackId => Attack log) attackLog;
     Counters.Counter attackLogNextUid;
 
     ERC20Burnable public combatToken;
@@ -45,7 +50,7 @@ abstract contract LocCombat is
         IEntity player,
         uint256 attackerPlayerID,
         uint256 defenderPlayerID,
-        IERC20 combatToken,
+        ERC20Burnable combatToken,
         uint256 attackCostWad,
         uint256 attackWinningsWad
     );
@@ -67,7 +72,11 @@ abstract contract LocCombat is
         playerAttackTimer[attackerPlayerID].setDeadline(
             uint64(
                 block.timestamp +
-                    playerStat(attackerPlayerID, BOOSTER_PLAYER_ATKCD)
+                    playerStat(
+                        attackerPlayerID,
+                        BOOSTER_PLAYER_ATKCD_ADD,
+                        BOOSTER_PLAYER_ATKCD_MUL
+                    )
             )
         ); //attackcooldown should be set by booster
 
@@ -77,22 +86,24 @@ abstract contract LocCombat is
         currentAttack.defenderPlayerID = defenderPlayerID;
         currentAttack.time = block.timestamp;
         uint256 attackerTokens = entityStoreERC20.getStoredER20WadFor(
-            player,
+            PLAYER,
             attackerPlayerID,
             combatToken
         );
         uint256 defenderTokens = entityStoreERC20.getStoredER20WadFor(
-            player,
+            PLAYER,
             defenderPlayerID,
             combatToken
         );
         uint256 attackerPowerPerToken = (playerStat(
             attackerPlayerID,
-            BOOSTER_PLAYER_POWER
+            BOOSTER_PLAYER_POWER_ADD,
+            BOOSTER_PLAYER_POWER_MUL
         ) * 1 ether) / attackerTokens;
         uint256 defenderPowerPerToken = (playerStat(
             defenderPlayerID,
-            BOOSTER_PLAYER_POWER
+            BOOSTER_PLAYER_POWER_ADD,
+            BOOSTER_PLAYER_POWER_MUL
         ) * 1 ether) / defenderTokens;
         uint256 powerRatio = (1 ether * attackerPowerPerToken) /
             defenderPowerPerToken;
@@ -101,7 +112,7 @@ abstract contract LocCombat is
         currentAttack.cost = (attackCostBps * attackerTokens) / 10000;
         if (currentAttack.cost > 0) {
             entityStoreERC20.burn(
-                player,
+                PLAYER,
                 attackerPlayerID,
                 combatToken,
                 currentAttack.cost
@@ -115,9 +126,9 @@ abstract contract LocCombat is
 
         if (currentAttack.winnings > 0) {
             entityStoreERC20.transfer(
-                player,
+                PLAYER,
                 defenderPlayerID,
-                player,
+                PLAYER,
                 attackerPlayerID,
                 combatToken,
                 currentAttack.winnings
@@ -125,7 +136,7 @@ abstract contract LocCombat is
         }
 
         emit AttackResolved(
-            player,
+            PLAYER,
             attackerPlayerID,
             defenderPlayerID,
             combatToken,

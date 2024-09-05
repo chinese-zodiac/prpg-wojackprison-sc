@@ -4,9 +4,9 @@
 // any contract using this should have an admin able to switch
 // the RNG to an upgraded version that has security guarantees
 
-pragma solidity >=0.8.19;
+pragma solidity ^0.8.23;
 
-import "./libs/Counters.sol";
+import {Counters} from "./libs/Counters.sol";
 
 contract CheapRNG {
     using Counters for Counters.Counter;
@@ -17,6 +17,8 @@ contract CheapRNG {
 
     event RequestRandom(uint256 requestID);
     event FullfillRandom(uint256 requestID, bytes32 randWord);
+
+    error NotRequester(address requester);
 
     constructor() {
         // start at 1
@@ -35,7 +37,9 @@ contract CheapRNG {
         uint256 requestID
     ) public returns (bytes32 randWord) {
         address requester = requesters[requestID];
-        require(msg.sender == requester, "RNG: Not requester");
+        if (msg.sender != requester) {
+            revert NotRequester(requester);
+        }
         randWord = keccak256(
             abi.encodePacked(
                 //blockHash for randomness source.

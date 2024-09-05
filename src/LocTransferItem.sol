@@ -1,47 +1,48 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
-pragma solidity >=0.8.19;
+pragma solidity ^0.8.23;
 
-import "./AccessRoleManager.sol";
-import "./LocationBase.sol";
-import "./TokenBase.sol";
-import "./BoostedValueCalculator.sol";
-import "./interfaces/IEntity.sol";
-import "./EntityStoreERC20.sol";
-import "./EntityStoreERC721.sol";
-import "./ResourceStakingPool.sol";
-import "./libs/Counters.sol";
-import "@openzeppelin/contracts/utils/structs/BitMaps.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {AccessRoleManager} from "./AccessRoleManager.sol";
+import {ILocationController} from "./interfaces/ILocationController.sol";
+import {LocWithTokenStore} from "./LocWithTokenStore.sol";
+import {LocationBase} from "./LocationBase.sol";
+import {TokenBase} from "./TokenBase.sol";
+import {BoostedValueCalculator} from "./BoostedValueCalculator.sol";
+import {IEntity} from "./interfaces/IEntity.sol";
+import {EntityStoreERC20} from "./EntityStoreERC20.sol";
+import {EntityStoreERC721} from "./EntityStoreERC721.sol";
+import {ResourceStakingPool} from "./ResourceStakingPool.sol";
+import {Counters} from "./libs/Counters.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {EnumerableSetAccessControlViewableAddress} from "./utils/EnumerableSetAccessControlViewableAddress.sol";
 
-abstract contract LocTransferItem is AccessRoleManager, LocationBase {
-    using EnumerableSet for EnumerableSet.AddressSet;
-    using EnumerableSet for EnumerableSet.UintSet;
+abstract contract LocTransferItem is
+    AccessRoleManager,
+    LocationBase,
+    LocWithTokenStore
+{
     using Counters for Counters.Counter;
     using SafeERC20 for IERC20;
 
-    EntityStoreERC20 public entityStoreERC20;
-    EntityStoreERC721 public entityStoreERC721;
-
-    EnumerableSet.AddressSet transferableItems;
-
-    event AddTransferableItem(address item);
-    event DeleteTransferableItem(address item);
+    EnumerableSetAccessControlViewableAddress transferableItemsSet;
 
     modifier onlyTransferableItem(address item) {
-        require(transferableItems.contains(item));
+        transferableItemsSet.revertIfNotInSet(item);
         _;
     }
 
     constructor(
-        ILocationController _locationController,
-        EntityStoreERC20 _entityStoreERC20,
-        EntityStoreERC721 _entityStoreERC721
-    ) LocationBase(_locationController) {
-        entityStoreERC20 = _entityStoreERC20;
-        entityStoreERC721 = _entityStoreERC721;
+        EnumerableSetAccessControlViewableAddress _transferableItemsSet
+    ) {
+        transferableItemsSet = _transferableItemsSet;
+    }
+
+    function setTransferableItemsSet(
+        EnumerableSetAccessControlViewableAddress _transferableItemsSet
+    ) external onlyRole(MANAGER_ROLE) {
+        transferableItemsSet = _transferableItemsSet;
     }
 
     function transferIERC20(
@@ -84,37 +85,5 @@ abstract contract LocTransferItem is AccessRoleManager, LocationBase {
             token,
             ids
         );
-    }
-
-    //High gas usage, view only
-    function viewOnly_getAllTransferableItems()
-        external
-        view
-        returns (address[] memory items)
-    {
-        items = new address[](transferableItems.length());
-        for (uint i; i < transferableItems.length(); i++) {
-            items[i] = transferableItems.at(i);
-        }
-    }
-
-    function getTransferableItemsCount() public view returns (uint256) {
-        return transferableItems.length();
-    }
-
-    function getTransferableItemAt(
-        uint256 index
-    ) public view returns (address) {
-        return transferableItems.at(index);
-    }
-
-    function addTransferableItem(address item) external onlyManager {
-        transferableItems.add(item);
-        emit AddTransferableItem(item);
-    }
-
-    function deleteTransferableItem(address item) external onlyManager {
-        transferableItems.remove(item);
-        emit DeleteTransferableItem(item);
     }
 }
