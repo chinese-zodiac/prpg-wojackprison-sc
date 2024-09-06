@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.23;
 
+import {RegionSettings} from "./RegionSettings.sol";
 import {Entity} from "./Entity.sol";
 import {CheapRNG} from "./CheapRNG.sol";
 import {ILocation} from "./interfaces/ILocation.sol";
@@ -10,11 +11,6 @@ import {EnumerableSetAccessControlViewableBytes32} from "./utils/EnumerableSetAc
 
 contract PlayerCharacters is Entity {
     bytes32 public constant IPFS_MANAGER = keccak256("IPFS_MANAGER");
-
-    CheapRNG public cheapRNG;
-
-    EnumerableSetAccessControlViewableBytes32 public eTypesSet;
-    EnumerableSetAccessControlViewableAddress public spawnPointsSet;
 
     mapping(uint256 playerID => string ipfsHash) public metadataIpfsHash;
 
@@ -44,18 +40,10 @@ contract PlayerCharacters is Entity {
     error CannotSpawnToZeroAddress(address receiver);
 
     constructor(
-        ILocationController _locationController,
         string memory name,
         string memory symbol,
-        CheapRNG _cheapRNG,
-        EnumerableSetAccessControlViewableBytes32 _eTypesSet,
-        EnumerableSetAccessControlViewableAddress _spawnPointsSet
-    ) Entity(name, symbol, _locationController) {
-        cheapRNG = _cheapRNG;
-        eTypesSet = _eTypesSet;
-        spawnPointsSet = _spawnPointsSet;
-        emit SetCheapRNG(cheapRNG);
-    }
+        RegionSettings _regionSettings
+    ) Entity(name, symbol, _regionSettings) {}
 
     function tokenURI(
         uint256 playerID
@@ -82,9 +70,9 @@ contract PlayerCharacters is Entity {
         if (_receiver == address(0x0)) {
             revert CannotSpawnToZeroAddress(_receiver);
         }
-        eTypesSet.revertIfNotInSet(_eType);
-        spawnPointsSet.revertIfNotInSet(address(_location));
-        requestID = cheapRNG.requestRandom();
+        regionSettings.eTypesSet().revertIfNotInSet(_eType);
+        regionSettings.spawnPointsSet().revertIfNotInSet(address(_location));
+        requestID = regionSettings.cheapRng().requestRandom();
         MintRequest storage req = requests[requestID];
         req.location = _location;
         req.eType = _eType;
@@ -97,30 +85,11 @@ contract PlayerCharacters is Entity {
         if (req.receiver == address(0x0)) {
             revert RequestIDDoesNotExist(_requestID);
         }
-        bytes32 randWord = cheapRNG.fullfillRandom(_requestID);
+        bytes32 randWord = regionSettings.cheapRng().fullfillRandom(_requestID);
         nftID = _mint(req.receiver, req.location, req.eType, randWord);
         emit FullfillMint(_requestID, nftID, randWord);
         delete req.receiver;
         delete req.eType;
         delete req.location;
-    }
-
-    function setCheapRNG(CheapRNG _to) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        cheapRNG = _to;
-        emit SetCheapRNG(cheapRNG);
-    }
-
-    function setETypesSet(
-        EnumerableSetAccessControlViewableBytes32 _to
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        eTypesSet = _to;
-        emit SetETypesSet(eTypesSet);
-    }
-
-    function setSpawnPointsSet(
-        EnumerableSetAccessControlViewableAddress _to
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        spawnPointsSet = _to;
-        emit SetSpawnPointsSet(spawnPointsSet);
     }
 }

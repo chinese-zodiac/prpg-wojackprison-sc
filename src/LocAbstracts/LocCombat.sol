@@ -2,19 +2,14 @@
 // Authored by Plastic Digits
 pragma solidity ^0.8.23;
 
-import {IEntity} from "./interfaces/IEntity.sol";
-import {LocationBase} from "./LocationBase.sol";
-import {LocWithTokenStore} from "./LocWithTokenStore.sol";
+import {IEntity} from "../interfaces/IEntity.sol";
+import {EntityStoreERC20} from "../EntityStoreERC20.sol";
 import {LocPlayerWithStats} from "./LocPlayerWithStats.sol";
-import {Timers} from "./libs/Timers.sol";
-import {Counters} from "./libs/Counters.sol";
+import {Timers} from "../libs/Timers.sol";
+import {Counters} from "../libs/Counters.sol";
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 
-abstract contract LocCombat is
-    LocationBase,
-    LocPlayerWithStats,
-    LocWithTokenStore
-{
+abstract contract LocCombat is LocPlayerWithStats {
     using Counters for Counters.Counter;
     using Timers for Timers.Timestamp;
 
@@ -44,8 +39,6 @@ abstract contract LocCombat is
     mapping(uint256 attackId => Attack log) attackLog;
     Counters.Counter attackLogNextUid;
 
-    ERC20Burnable public combatToken;
-
     event AttackResolved(
         IEntity player,
         uint256 attackerPlayerID,
@@ -54,10 +47,6 @@ abstract contract LocCombat is
         uint256 attackCostWad,
         uint256 attackWinningsWad
     );
-
-    constructor(ERC20Burnable _combatToken) {
-        combatToken = _combatToken;
-    }
 
     function attack(
         uint256 attackerPlayerID,
@@ -85,13 +74,16 @@ abstract contract LocCombat is
         currentAttack.attackerPlayerID = attackerPlayerID;
         currentAttack.defenderPlayerID = defenderPlayerID;
         currentAttack.time = block.timestamp;
-        uint256 attackerTokens = entityStoreERC20.getStoredER20WadFor(
-            PLAYER,
+        EntityStoreERC20 erc20Store = regionSettings.entityStoreERC20();
+        IEntity player = regionSettings.player();
+        ERC20Burnable combatToken = regionSettings.combatToken();
+        uint256 attackerTokens = erc20Store.getStoredER20WadFor(
+            player,
             attackerPlayerID,
             combatToken
         );
-        uint256 defenderTokens = entityStoreERC20.getStoredER20WadFor(
-            PLAYER,
+        uint256 defenderTokens = erc20Store.getStoredER20WadFor(
+            player,
             defenderPlayerID,
             combatToken
         );
@@ -111,8 +103,8 @@ abstract contract LocCombat is
         //Destroy the combatToken cost from attacker
         currentAttack.cost = (attackCostBps * attackerTokens) / 10000;
         if (currentAttack.cost > 0) {
-            entityStoreERC20.burn(
-                PLAYER,
+            erc20Store.burn(
+                player,
                 attackerPlayerID,
                 combatToken,
                 currentAttack.cost
@@ -125,10 +117,10 @@ abstract contract LocCombat is
             10000 ether;
 
         if (currentAttack.winnings > 0) {
-            entityStoreERC20.transfer(
-                PLAYER,
+            erc20Store.transfer(
+                player,
                 defenderPlayerID,
-                PLAYER,
+                player,
                 attackerPlayerID,
                 combatToken,
                 currentAttack.winnings
@@ -136,7 +128,7 @@ abstract contract LocCombat is
         }
 
         emit AttackResolved(
-            PLAYER,
+            player,
             attackerPlayerID,
             defenderPlayerID,
             combatToken,

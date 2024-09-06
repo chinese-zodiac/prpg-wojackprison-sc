@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.23;
 
+import {RegionSettings} from "./RegionSettings.sol";
+import {HasRegionSettings} from "./utils/HasRegionSettings.sol";
 import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
@@ -14,7 +16,7 @@ import {ILocationController} from "./interfaces/ILocationController.sol";
 
 contract Entity is
     IEntity,
-    AccessControlEnumerable,
+    HasRegionSettings,
     ERC721Enumerable,
     ERC721Burnable
 {
@@ -23,8 +25,6 @@ contract Entity is
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     Counters.Counter private _tokenIdTracker;
-
-    ILocationController public locationController;
 
     struct EntityInfo {
         bytes32 seed; //Random seed used to determine nft stats on 3rd contracts
@@ -36,10 +36,9 @@ contract Entity is
     constructor(
         string memory name,
         string memory symbol,
-        ILocationController _locationController
-    ) ERC721(name, symbol) {
+        RegionSettings _regionSettings
+    ) ERC721(name, symbol) HasRegionSettings(_regionSettings) {
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
-        locationController = _locationController;
     }
 
     function _mint(
@@ -58,7 +57,7 @@ contract Entity is
         uint256 newTokenId = _tokenIdTracker.current();
         _mint(address(this), newTokenId);
 
-        locationController.spawn(this, newTokenId, _location);
+        regionSettings.locationController().spawn(this, newTokenId, _location);
 
         EntityInfo storage info = entityInfo[newTokenId];
 
@@ -75,7 +74,7 @@ contract Entity is
     function burn(
         uint256 _nftId
     ) public virtual override(IEntity, ERC721Burnable) {
-        locationController.despawn(this, _nftId);
+        regionSettings.locationController().despawn(this, _nftId);
         ERC721Burnable.burn(_nftId);
     }
 

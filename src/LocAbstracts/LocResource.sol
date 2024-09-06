@@ -2,22 +2,14 @@
 // Authored by Plastic Digits
 pragma solidity ^0.8.23;
 
-import {TokenBase} from "./TokenBase.sol";
+import {EntityStoreERC20} from "../EntityStoreERC20.sol";
+import {TokenBase} from "../TokenBase.sol";
 import {LocPlayerWithStats} from "./LocPlayerWithStats.sol";
-import {ILocation} from "./interfaces/ILocation.sol";
-import {IEntity} from "./interfaces/IEntity.sol";
-import {ResourceStakingPool} from "./ResourceStakingPool.sol";
-import {LocWithTokenStore} from "./LocWithTokenStore.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ILocation} from "../interfaces/ILocation.sol";
+import {IEntity} from "../interfaces/IEntity.sol";
+import {ResourceStakingPool} from "../ResourceStakingPool.sol";
 
-abstract contract LocResource is
-    ILocation,
-    LocPlayerWithStats,
-    LocWithTokenStore
-{
-    using SafeERC20 for IERC20;
-
+abstract contract LocResource is LocPlayerWithStats {
     bytes32 public constant BOOSTER_PLAYER_PULL_ADD =
         keccak256(abi.encodePacked("BOOSTER_PLAYER_PULL_ADD"));
     bytes32 public constant BOOSTER_PLAYER_PULL_MUL =
@@ -72,8 +64,14 @@ abstract contract LocResource is
         resourceStakingPool.claimFor(bytes32(playerID));
         uint256 deltabal = resourceToken.balanceOf(address(this)) -
             initialResourceBal;
-        resourceToken.approve(address(entityStoreERC20), deltabal);
-        entityStoreERC20.deposit(PLAYER, playerID, resourceToken, deltabal);
+        EntityStoreERC20 erc20Store = regionSettings.entityStoreERC20();
+        resourceToken.approve(address(erc20Store), deltabal);
+        erc20Store.deposit(
+            regionSettings.player(),
+            playerID,
+            resourceToken,
+            deltabal
+        );
     }
 
     //Only callable by LOCATION_CONTROLLER
@@ -82,7 +80,7 @@ abstract contract LocResource is
         uint256 _entityId,
         ILocation //_from
     ) public virtual override {
-        if (_entity == PLAYER) {
+        if (_entity == regionSettings.player()) {
             _startPlayerProduction(_entityId);
         }
     }
@@ -93,7 +91,7 @@ abstract contract LocResource is
         uint256 _entityId,
         ILocation //_to
     ) public virtual override {
-        if (_entity == PLAYER) {
+        if (_entity == regionSettings.player()) {
             _haltPlayerProduction(_entityId);
         }
     }
@@ -121,20 +119,18 @@ abstract contract LocResource is
 
     function setResourceStakingPool(
         ResourceStakingPool to
-    ) external onlyRole(MANAGER_ROLE) {
+    ) external onlyManager {
         resourceStakingPool = to;
         emit SetResourceStakingPool(resourceStakingPool);
     }
 
-    function setResourceToken(TokenBase to) external onlyRole(MANAGER_ROLE) {
+    function setResourceToken(TokenBase to) external onlyManager {
         resourceToken = to;
         resourceStakingPool.setRewardToken(to);
         emit SetResourceToken(resourceToken);
     }
 
-    function setBaseResourcesPerDay(
-        uint256 to
-    ) external onlyRole(MANAGER_ROLE) {
+    function setBaseResourcesPerDay(uint256 to) external onlyManager {
         currentProdDaily -= baseProdDaily;
         baseProdDaily = to;
         currentProdDaily += baseProdDaily;

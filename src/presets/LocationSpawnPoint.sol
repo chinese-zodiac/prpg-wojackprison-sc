@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.8.19;
 
-import "../LocationBase.sol";
-import "../LocWithTokenStore.sol";
-import "../PlayerCharacters.sol";
-import "../EntityStoreERC20.sol";
-import "../EntityStoreERC721.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+import {LocBase} from "../LocAbstracts/LocBase.sol";
+import {LocTransferItem} from "../LocAbstracts/LocTransferItem.sol";
+import {RegionSettings} from "../RegionSettings.sol";
+import {ILocation} from "../interfaces/ILocation.sol";
+import {HasRegionSettings} from "../utils/HasRegionSettings.sol";
+import {PlayerCharacters} from "../PlayerCharacters.sol";
+import {EntityStoreERC20} from "../EntityStoreERC20.sol";
+import {EntityStoreERC721} from "../EntityStoreERC721.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {EnumerableSetAccessControlViewableAddress} from "../utils/EnumerableSetAccessControlViewableAddress.sol";
 
-contract LocationSpawnPoint is LocationBase, LocWithTokenStore {
+contract LocationSpawnPoint is LocBase, LocTransferItem {
     using SafeERC20 for IERC20;
 
     bytes32 public constant WHITELIST_MANAGER =
@@ -18,6 +21,7 @@ contract LocationSpawnPoint is LocationBase, LocWithTokenStore {
 
     PlayerCharacters public immutable playerCharacters;
 
+    //TODO: Switch to enumberable set
     mapping(address token => bool isValid) public isTokenWhitelisted;
 
     struct SpawnRequirements {
@@ -30,40 +34,13 @@ contract LocationSpawnPoint is LocationBase, LocWithTokenStore {
         internal spawnRequirements;
 
     constructor(
-        ILocationController _locationController,
+        RegionSettings _regionSettings,
         EnumerableSetAccessControlViewableAddress _validSourceSet,
-        EnumerableSetAccessControlViewableAddress _validDestinationSet,
-        EnumerableSetAccessControlViewableAddress _validEntitySet,
-        PlayerCharacters _playerCharacters,
-        EntityStoreERC20 _entityStoreERC20,
-        EntityStoreERC721 _entityStoreERC721
+        EnumerableSetAccessControlViewableAddress _validDestinationSet
     )
-        LocationBase(
-            _locationController,
-            _validSourceSet,
-            _validDestinationSet,
-            _validEntitySet
-        )
-        LocWithTokenStore(_entityStoreERC20, _entityStoreERC721)
-    {
-        playerCharacters = _playerCharacters;
-    }
-
-    function setNFTWhitelist(
-        IERC721 _nft,
-        bool isWhitelisted
-    ) external onlyRole(WHITELIST_MANAGER) {
-        isTokenWhitelisted[address(_nft)] = isWhitelisted;
-        _nft.setApprovalForAll(address(entityStoreERC721), true);
-    }
-
-    function setIERC20Whitelist(
-        IERC20 _token,
-        bool isWhitelisted
-    ) external onlyRole(WHITELIST_MANAGER) {
-        isTokenWhitelisted[address(_token)] = isWhitelisted;
-        _token.approve(address(entityStoreERC20), type(uint256).max);
-    }
+        HasRegionSettings(_regionSettings)
+        LocBase(_validSourceSet, _validDestinationSet)
+    {}
 
     function requestSpawnPlayerCharacter(
         bytes32 eType,
@@ -85,8 +62,10 @@ contract LocationSpawnPoint is LocationBase, LocWithTokenStore {
             msg.sender == playerCharacters.ownerOf(_playerID),
             "Only player owner"
         );
+        EntityStoreERC20 erc20Store = regionSettings.entityStoreERC20();
         _token.safeTransferFrom(msg.sender, address(this), _wad);
-        entityStoreERC20.deposit(
+        _token.approve(address(erc20Store), _wad);
+        erc20Store.deposit(
             playerCharacters,
             _playerID,
             _token,
@@ -99,7 +78,12 @@ contract LocationSpawnPoint is LocationBase, LocWithTokenStore {
         uint256 _playerID,
         uint256 _wad
     ) external {
-        entityStoreERC20.withdraw(playerCharacters, _playerID, _token, _wad);
+        regionSettings.entityStoreERC20().withdraw(
+            playerCharacters,
+            _playerID,
+            _token,
+            _wad
+        );
         _token.safeTransfer(msg.sender, _token.balanceOf(address(this)));
     }
 

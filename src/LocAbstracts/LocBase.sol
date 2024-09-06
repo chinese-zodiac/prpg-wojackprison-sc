@@ -1,18 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.23;
-import {ILocation} from "./interfaces/ILocation.sol";
-import {ILocationController} from "./interfaces/ILocationController.sol";
-import {IEntity} from "./interfaces/IEntity.sol";
-import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
-import {EnumerableSetAccessControlViewableAddress} from "./utils/EnumerableSetAccessControlViewableAddress.sol";
 
-contract LocationBase is ILocation, AccessControlEnumerable {
-    ILocationController immutable locationController;
+import {HasRegionSettings} from "../utils/HasRegionSettings.sol";
+import {ILocation} from "../interfaces/ILocation.sol";
+import {ILocationController} from "../interfaces/ILocationController.sol";
+import {IEntity} from "../interfaces/IEntity.sol";
+import {EnumerableSetAccessControlViewableAddress} from "../utils/EnumerableSetAccessControlViewableAddress.sol";
 
+abstract contract LocBase is HasRegionSettings, ILocation {
     EnumerableSetAccessControlViewableAddress public validSourceSet;
     EnumerableSetAccessControlViewableAddress public validDestinationSet;
-    EnumerableSetAccessControlViewableAddress public validEntitySet;
-
     event OnDeparture(IEntity entity, uint256 entityID, ILocation to);
     event OnArrival(IEntity entity, uint256 entityID, ILocation from);
 
@@ -24,21 +21,19 @@ contract LocationBase is ILocation, AccessControlEnumerable {
     );
 
     constructor(
-        ILocationController _locationController,
         EnumerableSetAccessControlViewableAddress _validSourceSet,
-        EnumerableSetAccessControlViewableAddress _validDestinationSet,
-        EnumerableSetAccessControlViewableAddress _validEntitySet
+        EnumerableSetAccessControlViewableAddress _validDestinationSet
     ) {
-        locationController = _locationController;
         validSourceSet = _validSourceSet;
         validDestinationSet = _validDestinationSet;
-        validEntitySet = _validEntitySet;
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     modifier onlyLocationController() {
-        if (msg.sender != address(locationController)) {
-            revert OnlyLocationController(msg.sender, locationController);
+        if (msg.sender != address(regionSettings.locationController())) {
+            revert OnlyLocationController(
+                msg.sender,
+                regionSettings.locationController()
+            );
         }
         _;
     }
@@ -53,7 +48,12 @@ contract LocationBase is ILocation, AccessControlEnumerable {
     modifier onlyLocalEntity(IEntity _entity, uint256 _entityId) {
         if (
             address(this) !=
-            address(locationController.entityIdLocation(_entity, _entityId))
+            address(
+                regionSettings.locationController().entityIdLocation(
+                    _entity,
+                    _entityId
+                )
+            )
         ) {
             revert OnlyLocalEntity(_entity, _entityId);
         }
@@ -67,7 +67,7 @@ contract LocationBase is ILocation, AccessControlEnumerable {
         ILocation _from
     ) public virtual onlyLocationController {
         validSourceSet.revertIfNotInSet(address(_from));
-        validEntitySet.revertIfNotInSet(address(_entity));
+        regionSettings.validEntitySet().revertIfNotInSet(address(_entity));
         emit OnArrival(_entity, _entityID, _from);
     }
 
@@ -78,7 +78,7 @@ contract LocationBase is ILocation, AccessControlEnumerable {
         ILocation _to
     ) public virtual onlyLocationController {
         validDestinationSet.revertIfNotInSet(address(_to));
-        validEntitySet.revertIfNotInSet(address(_entity));
+        regionSettings.validEntitySet().revertIfNotInSet(address(_entity));
         emit OnDeparture(_entity, _entityID, _to);
     }
 }

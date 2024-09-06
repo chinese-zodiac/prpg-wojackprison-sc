@@ -2,18 +2,12 @@
 // Authored by Plastic Digits
 pragma solidity ^0.8.23;
 
-import {IEntity} from "./interfaces/IEntity.sol";
-import {ILocation} from "./interfaces/ILocation.sol";
-import {LocationBase} from "./LocationBase.sol";
-import {LocWithTokenStore} from "./LocWithTokenStore.sol";
+import {IEntity} from "../interfaces/IEntity.sol";
+import {ILocation} from "../interfaces/ILocation.sol";
 import {LocPlayerWithStats} from "./LocPlayerWithStats.sol";
-import {Timers} from "./libs/Timers.sol";
+import {Timers} from "../libs/Timers.sol";
 
-abstract contract LocPrepareMove is
-    LocationBase,
-    LocPlayerWithStats,
-    LocWithTokenStore
-{
+abstract contract LocPrepareMove is LocPlayerWithStats {
     using Timers for Timers.Timestamp;
 
     mapping(ILocation location => bool isTimed) public isDestinationTimed;
@@ -40,6 +34,7 @@ abstract contract LocPrepareMove is
         uint64 deadline
     );
 
+    error InvalidDestination(ILocation destination);
     error OnlyTimedDestination(ILocation destination);
     error NotReadyToMove(
         IEntity entity,
@@ -69,7 +64,7 @@ abstract contract LocPrepareMove is
         ILocation destination
     )
         external
-        onlyLocalEntity(PLAYER, playerID)
+        onlyLocalEntity(regionSettings.player(), playerID)
         onlyPlayerOwner(playerID)
         onlyTimedDestination(destination)
     {
@@ -94,8 +89,8 @@ abstract contract LocPrepareMove is
         IEntity _entity,
         uint256 _entityID,
         ILocation _to
-    ) public virtual override(ILocation, LocationBase) {
-        if (isDestinationTimed[_to] && _entity == PLAYER) {
+    ) public virtual override {
+        if (isDestinationTimed[_to] && _entity == regionSettings.player()) {
             //timed destination checks
             if (!movePreps[_entityID].readyTimer.isExpired()) {
                 revert NotReadyToMove(_entity, _entityID, _to);
@@ -135,30 +130,17 @@ abstract contract LocPrepareMove is
     function setTimedDestination(
         ILocation[] calldata _destinations,
         bool isTimed
-    ) public {
-        if (
-            !validDestinationSet.hasRole(
-                validDestinationSet.MANAGER_ROLE(),
-                msg.sender
-            )
-        ) {
-            revert AccessControlUnauthorizedAccount(
-                msg.sender,
-                validDestinationSet.MANAGER_ROLE()
-            );
-        }
+    ) public onlyManager {
         for (uint256 i; i < _destinations.length; i++) {
-            if (
-                isTimed &&
-                !validDestinationSet.getContains(address(_destinations[i]))
-            ) {
-                validDestinationSet.add(address(_destinations[i]));
+            ILocation dest = _destinations[i];
+            if (isTimed && !validDestinationSet.getContains(address(dest))) {
+                revert InvalidDestination(dest);
             }
-            isDestinationTimed[_destinations[i]] = isTimed;
+            isDestinationTimed[dest] = isTimed;
         }
     }
 
-    function setTravelTime(uint64 to) external onlyRole(MANAGER_ROLE) {
+    function setTravelTime(uint64 to) external onlyManager {
         travelTime = to;
     }
 }

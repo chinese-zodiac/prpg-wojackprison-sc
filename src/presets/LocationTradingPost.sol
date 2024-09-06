@@ -2,28 +2,20 @@
 // Authored by Plastic Digits
 pragma solidity >=0.8.19;
 
-import "../AccessRoleManager.sol";
-import "../LocTransferItem.sol";
-import "../LocTransferItem.sol";
-import "../TokenBase.sol";
-import "../BoostedValueCalculator.sol";
-import "../interfaces/IEntity.sol";
-import "../EntityStoreERC20.sol";
-import "../ResourceStakingPool.sol";
-import "../libs/Counters.sol";
-import "../interfaces/ILocationController.sol";
-import "@openzeppelin/contracts/utils/structs/BitMaps.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {LocBase} from "../LocAbstracts/LocBase.sol";
+import {LocTransferItem} from "../LocAbstracts/LocTransferItem.sol";
+import {RegionSettings} from "../RegionSettings.sol";
+import {HasRegionSettings} from "../utils/HasRegionSettings.sol";
+import {TokenBase} from "../TokenBase.sol";
+import {IEntity} from "../interfaces/IEntity.sol";
+import {Counters} from "../libs/Counters.sol";
+import {EntityStoreERC20} from "../EntityStoreERC20.sol";
+import {EnumerableSetAccessControlViewableAddress} from "../utils/EnumerableSetAccessControlViewableAddress.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-//TODO: Switch to enumerableset contract for shop items
-contract LocationTradingPost is AccessRoleManager, LocTransferItem {
-    using EnumerableSet for EnumerableSet.AddressSet;
-    using EnumerableSet for EnumerableSet.UintSet;
+contract LocationTradingPost is LocBase, LocTransferItem {
     using Counters for Counters.Counter;
-    using SafeERC20 for IERC20;
-
+    using EnumerableSet for EnumerableSet.UintSet;
     struct ShopItem {
         TokenBase item;
         TokenBase currency;
@@ -31,9 +23,6 @@ contract LocationTradingPost is AccessRoleManager, LocTransferItem {
         uint256 increasePerItemSold;
         uint256 totalSold;
     }
-
-    address public taxReceiver;
-    uint256 public taxBPS = 0;
 
     EnumerableSet.UintSet shopItemKeys;
     Counters.Counter shopItemNextUid;
@@ -55,34 +44,15 @@ contract LocationTradingPost is AccessRoleManager, LocTransferItem {
         uint256 taxFee,
         uint256 totalFee
     );
-    event SetTaxReceiver(address taxReceiver);
-    event SetTaxBPS(uint256 taxBPS);
 
     constructor(
-        EnumerableSetAccessControlViewableAddress _transferableItemsSet,
-        ILocationController _locationController,
+        RegionSettings _regionSettings,
         EnumerableSetAccessControlViewableAddress _validSourceSet,
-        EnumerableSetAccessControlViewableAddress _validDestinationSet,
-        EnumerableSetAccessControlViewableAddress _validEntitySet,
-        EntityStoreERC20 _entityStoreERC20,
-        EntityStoreERC721 _entityStoreERC721,
-        address _taxReceiver,
-        uint256 _taxBPS
+        EnumerableSetAccessControlViewableAddress _validDestinationSet
     )
-        LocTransferItem(_transferableItemsSet)
-        LocationBase(
-            _locationController,
-            _validSourceSet,
-            _validDestinationSet,
-            _validEntitySet
-        )
-        LocWithTokenStore(_entityStoreERC20, _entityStoreERC721)
-    {
-        taxReceiver = _taxReceiver;
-        taxBPS = _taxBPS;
-        emit SetTaxReceiver(taxReceiver);
-        emit SetTaxBPS(taxBPS);
-    }
+        HasRegionSettings(_regionSettings)
+        LocBase(_validSourceSet, _validDestinationSet)
+    {}
 
     function buyShopItem(
         IEntity entity,
@@ -99,7 +69,7 @@ contract LocationTradingPost is AccessRoleManager, LocTransferItem {
             (item.pricePerItemWad +
                 item.totalSold *
                 item.increasePerItemSold)) / 1 ether;
-        uint256 taxFee = (totalFee * taxBPS) / 10_000;
+        uint256 taxFee = (totalFee * regionSettings.taxBps()) / 10_000;
         emit BuyShopItem(
             entity,
             entityId,
@@ -108,28 +78,24 @@ contract LocationTradingPost is AccessRoleManager, LocTransferItem {
             taxFee,
             totalFee
         );
+        EntityStoreERC20 erc20Store = regionSettings.entityStoreERC20();
         if (taxFee > 0) {
-            entityStoreERC20.withdraw(
+            erc20Store.withdraw(
                 entity,
                 entityId,
                 item.currency,
                 totalFee - taxFee
             );
             item.currency.transfer(
-                taxReceiver,
+                regionSettings.taxReceiver(),
                 item.currency.balanceOf(address(this))
             );
         }
-        entityStoreERC20.burn(
-            entity,
-            entityId,
-            item.currency,
-            totalFee - taxFee
-        );
+        erc20Store.burn(entity, entityId, item.currency, totalFee - taxFee);
         item.item.mint(address(this), quantity);
         item.totalSold += quantity;
-        item.item.approve(address(entityStoreERC20), quantity);
-        entityStoreERC20.deposit(entity, entityId, item.item, quantity);
+        item.item.approve(address(erc20Store), quantity);
+        erc20Store.deposit(entity, entityId, item.item, quantity);
     }
 
     //High gas usage, view only
@@ -209,16 +175,5 @@ contract LocationTradingPost is AccessRoleManager, LocTransferItem {
         delete shopItems[id].totalSold;
         delete shopItems[id];
         shopItemKeys.remove(id);
-    }
-
-    function setTaxReceiver(address _to) external onlyManager {
-        taxReceiver = _to;
-        emit SetTaxReceiver(taxReceiver);
-    }
-
-    function setTaxBPS(uint256 _to) external onlyManager {
-        require(_to <= 10_000, "Cannot be more than 10,000 BPS (100%)");
-        taxBPS = _to;
-        emit SetTaxBPS(taxBPS);
     }
 }

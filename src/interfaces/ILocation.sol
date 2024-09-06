@@ -29,7 +29,4 @@ interface ILocation {
         returns (
             EnumerableSetAccessControlViewableAddress validDestinationSet_
         );
-    function validEntitySet()
-        external
-        returns (EnumerableSetAccessControlViewableAddress validEntitySet_);
 }

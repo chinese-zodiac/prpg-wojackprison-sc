@@ -2,19 +2,13 @@
 // Authored by Plastic Digits
 pragma solidity ^0.8.23;
 
-import {IEntity} from "./interfaces/IEntity.sol";
-import {ILocation} from "./interfaces/ILocation.sol";
-import {LocationBase} from "./LocationBase.sol";
-import {LocWithTokenStore} from "./LocWithTokenStore.sol";
-import {LocPlayerWithStats} from "./LocPlayerWithStats.sol";
+import {IEntity} from "../interfaces/IEntity.sol";
+import {ILocation} from "../interfaces/ILocation.sol";
+import {LocBase} from "./LocBase.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 
-abstract contract LocSpendItemToMove is
-    LocationBase,
-    LocPlayerWithStats,
-    LocWithTokenStore
-{
+abstract contract LocSpendItemToMove is LocBase {
     struct ItemWad {
         ERC20Burnable item;
         uint256 consumedWad;
@@ -28,19 +22,26 @@ abstract contract LocSpendItemToMove is
         uint256 balanceWad
     );
 
+    error InvalidDestination(ILocation destination);
+
+    event SetItemConsumedDestination(
+        ILocation destination,
+        ERC20Burnable item,
+        uint256 consumedWad
+    );
+
     //Only callable by LOCATION_CONTROLLER
     function LOCATION_CONTROLLER_onDeparture(
         IEntity _entity,
         uint256 _entityID,
         ILocation _to
-    ) public virtual override(ILocation, LocationBase) {
+    ) public virtual override {
         ItemWad memory item = items[_to];
-        if (item.consumedWad > 0 && _entity == PLAYER) {
-            uint256 balanceWad = entityStoreERC20.getStoredER20WadFor(
-                PLAYER,
-                _entityID,
-                item.item
-            );
+        IEntity player = regionSettings.player();
+        if (item.consumedWad > 0 && _entity == player) {
+            uint256 balanceWad = regionSettings
+                .entityStoreERC20()
+                .getStoredER20WadFor(player, _entityID, item.item);
             if (balanceWad < item.consumedWad) {
                 revert NotEnoughItem(
                     item.item,
@@ -48,8 +49,8 @@ abstract contract LocSpendItemToMove is
                     item.consumedWad
                 );
             }
-            entityStoreERC20.burn(
-                PLAYER,
+            regionSettings.entityStoreERC20().burn(
+                player,
                 _entityID,
                 item.item,
                 item.consumedWad
@@ -61,27 +62,18 @@ abstract contract LocSpendItemToMove is
         ILocation[] calldata _destinations,
         ERC20Burnable _item,
         uint256 _consumedWad
-    ) public {
-        if (
-            !validDestinationSet.hasRole(
-                validDestinationSet.MANAGER_ROLE(),
-                msg.sender
-            )
-        ) {
-            revert AccessControlUnauthorizedAccount(
-                msg.sender,
-                validDestinationSet.MANAGER_ROLE()
-            );
-        }
+    ) public onlyManager {
         for (uint i; i < _destinations.length; i++) {
+            ILocation dest = _destinations[i];
             if (
                 _consumedWad > 0 &&
-                !validDestinationSet.getContains(address(_destinations[i]))
+                !validDestinationSet.getContains(address(dest))
             ) {
-                validDestinationSet.add(address(_destinations[i]));
+                revert InvalidDestination(_destinations[i]);
             }
-            items[_destinations[i]].item = _item;
-            items[_destinations[i]].consumedWad = _consumedWad;
+            items[dest].item = _item;
+            items[dest].consumedWad = _consumedWad;
+            emit SetItemConsumedDestination(dest, _item, _consumedWad);
         }
     }
 }
