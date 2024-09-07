@@ -15,15 +15,6 @@ import {EnumerableSetAccessControlViewableAddress} from "../utils/EnumerableSetA
 
 contract LocationSpawnPoint is LocBase, LocTransferItem {
     using SafeERC20 for IERC20;
-
-    bytes32 public constant WHITELIST_MANAGER =
-        keccak256(abi.encodePacked("WHITELIST_MANAGER"));
-
-    PlayerCharacters public immutable playerCharacters;
-
-    //TODO: Switch to enumberable set
-    mapping(address token => bool isValid) public isTokenWhitelisted;
-
     struct SpawnRequirements {
         uint256 spawnCap;
         uint256 spawnCurrent;
@@ -32,6 +23,15 @@ contract LocationSpawnPoint is LocBase, LocTransferItem {
     }
     mapping(bytes32 eType => SpawnRequirements spawnRequirements)
         internal spawnRequirements;
+
+    error OverSpawnCap(bytes32 eType, uint256 spawnCurrent, uint256 spawnCap);
+
+    event SetSpawnRequirements(
+        bytes32 eType,
+        uint256 spawnCap,
+        IERC20 token,
+        uint256 wad
+    );
 
     constructor(
         RegionSettings _regionSettings,
@@ -47,8 +47,14 @@ contract LocationSpawnPoint is LocBase, LocTransferItem {
         address receiver
     ) public {
         SpawnRequirements storage reqs = spawnRequirements[eType];
-        require(reqs.spawnCap > reqs.spawnCurrent, "Over spawn cap for eType");
-        playerCharacters.requestMint(ILocation(this), eType, receiver);
+        if (reqs.spawnCap <= reqs.spawnCurrent) {
+            revert OverSpawnCap(eType, reqs.spawnCurrent, reqs.spawnCap);
+        }
+        PlayerCharacters(address(regionSettings.player())).requestMint(
+            ILocation(this),
+            eType,
+            receiver
+        );
         spawnRequirements[eType].spawnCurrent++;
     }
 
@@ -56,17 +62,12 @@ contract LocationSpawnPoint is LocBase, LocTransferItem {
         IERC20 _token,
         uint256 _playerID,
         uint256 _wad
-    ) external {
-        require(isTokenWhitelisted[address(_token)], "Not whitelisted");
-        require(
-            msg.sender == playerCharacters.ownerOf(_playerID),
-            "Only player owner"
-        );
+    ) external onlyEntityOwner(regionSettings.player(), _playerID) {
         EntityStoreERC20 erc20Store = regionSettings.entityStoreERC20();
         _token.safeTransferFrom(msg.sender, address(this), _wad);
         _token.approve(address(erc20Store), _wad);
         erc20Store.deposit(
-            playerCharacters,
+            regionSettings.player(),
             _playerID,
             _token,
             _token.balanceOf(address(this))
@@ -77,14 +78,27 @@ contract LocationSpawnPoint is LocBase, LocTransferItem {
         IERC20 _token,
         uint256 _playerID,
         uint256 _wad
-    ) external {
+    ) external onlyEntityOwner(regionSettings.player(), _playerID) {
         regionSettings.entityStoreERC20().withdraw(
-            playerCharacters,
+            regionSettings.player(),
             _playerID,
             _token,
             _wad
         );
         _token.safeTransfer(msg.sender, _token.balanceOf(address(this)));
+    }
+
+    function setSpawnRequirements(
+        bytes32 eType,
+        uint256 spawnCap,
+        IERC20 token,
+        uint256 wad
+    ) external onlyManager {
+        SpawnRequirements storage reqs = spawnRequirements[eType];
+        reqs.spawnCap = spawnCap;
+        reqs.token = token;
+        reqs.wad = wad;
+        emit SetSpawnRequirements(eType, spawnCap, token, wad);
     }
 
     function getSpawnRequirements(

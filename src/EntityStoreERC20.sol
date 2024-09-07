@@ -16,12 +16,13 @@ import {ILocationController} from "./interfaces/ILocationController.sol";
 contract EntityStoreERC20 is Ownable, Pausable {
     using SafeERC20 for IERC20;
 
-    mapping(IERC721 entity => mapping(uint256 entityId => mapping(IERC20 token => uint256 shares))) entityStoredERC20Shares;
+    mapping(IERC721 entity => mapping(uint256 entityId => mapping(IERC20 token => uint256 shares)))
+        public entityStoredERC20Shares;
     //Neccessary for rebasing, tax, liquid staking, or other tokens
     //that may directly modify this contract's balance.
     mapping(IERC20 token => uint256 shares) public totalShares;
     //Initial precision for shares per token
-    uint256 constant SHARES_PRECISION = 10 ** 8;
+    uint256 internal constant SHARES_PRECISION = 10 ** 8;
 
     ILocationController public immutable locationController;
 

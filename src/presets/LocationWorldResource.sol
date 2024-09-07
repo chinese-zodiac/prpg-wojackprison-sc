@@ -1,16 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
 pragma solidity ^0.8.23;
-import {ILocationController} from "../interfaces/ILocationController.sol";
 import {ILocation} from "../interfaces/ILocation.sol";
 import {IEntity} from "../interfaces/IEntity.sol";
-import {BoostedValueCalculator} from "../BoostedValueCalculator.sol";
 import {TokenBase} from "../TokenBase.sol";
-import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
-import {EntityStoreERC20} from "../EntityStoreERC20.sol";
-import {EntityStoreERC721} from "../EntityStoreERC721.sol";
 import {LocBase} from "../LocAbstracts/LocBase.sol";
-import {LocPlayerWithStats} from "../LocAbstracts/LocPlayerWithStats.sol";
 import {LocResource} from "../LocAbstracts/LocResource.sol";
 import {LocCombat} from "../LocAbstracts/LocCombat.sol";
 import {LocPrepareMove} from "../LocAbstracts/LocPrepareMove.sol";

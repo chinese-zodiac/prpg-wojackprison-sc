@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
-pragma solidity >=0.8.19;
+pragma solidity ^0.8.23;
 
 import {LocBase} from "../LocAbstracts/LocBase.sol";
 import {LocTransferItem} from "../LocAbstracts/LocTransferItem.sol";
@@ -24,8 +24,8 @@ contract LocationTradingPost is LocBase, LocTransferItem {
         uint256 totalSold;
     }
 
-    EnumerableSet.UintSet shopItemKeys;
-    Counters.Counter shopItemNextUid;
+    EnumerableSet.UintSet internal shopItemKeys;
+    Counters.Counter internal shopItemNextUid;
     mapping(uint256 itemId => ShopItem item) public shopItems;
 
     event SetItemInShop(
@@ -44,6 +44,8 @@ contract LocationTradingPost is LocBase, LocTransferItem {
         uint256 taxFee,
         uint256 totalFee
     );
+
+    error IndexNotInShop(uint256 index);
 
     constructor(
         RegionSettings _regionSettings,
@@ -105,7 +107,7 @@ contract LocationTradingPost is LocBase, LocTransferItem {
         returns (ShopItem[] memory items)
     {
         items = new ShopItem[](shopItemKeys.length());
-        for (uint i; i < shopItemKeys.length(); i++) {
+        for (uint256 i; i < shopItemKeys.length(); i++) {
             items[i] = (shopItems[shopItemKeys.at(i)]);
         }
     }
@@ -149,7 +151,9 @@ contract LocationTradingPost is LocBase, LocTransferItem {
         uint256 pricePerItemWad,
         uint256 increasePerItemSold
     ) external onlyManager {
-        require(shopItemKeys.length() > index, "index not in shop");
+        if (shopItemKeys.length() <= index) {
+            revert IndexNotInShop(index);
+        }
         uint256 id = shopItemKeys.at(index);
         emit SetItemInShop(
             id,
@@ -165,7 +169,9 @@ contract LocationTradingPost is LocBase, LocTransferItem {
     }
 
     function deleteItemFromShop(uint256 index) external onlyManager {
-        require(shopItemKeys.length() > index, "index not in shop");
+        if (shopItemKeys.length() <= index) {
+            revert IndexNotInShop(index);
+        }
         uint256 id = shopItemKeys.at(index);
         emit DeleteItemFromShop(id);
         delete shopItems[id].item;
