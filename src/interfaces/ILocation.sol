@@ -1,32 +1,52 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
 // Credit to Pancakeswap
-pragma solidity ^0.8.19;
-import "./ILocation.sol";
-import "./IEntity.sol";
+pragma solidity ^0.8.23;
+import {IEntity} from "./IEntity.sol";
+import {IActionController} from "./IActionController.sol";
 import {EnumerableSetAccessControlViewableAddress} from "../utils/EnumerableSetAccessControlViewableAddress.sol";
+import {IHasRegionSettings} from "./IHasRegionSettings.sol";
+import {IAuthorizer} from "./IAuthorizer.sol";
 
-interface ILocation {
-    //Only callable by LOCATION_CONTROLLER
-    function LOCATION_CONTROLLER_onArrival(
+interface ILocation is IHasRegionSettings, IAuthorizer {
+    function acSet()
+        external
+        view
+        returns (EnumerableSetAccessControlViewableAddress set);
+    function executeAction(
         IEntity _entity,
         uint256 _entityID,
-        ILocation _from
+        IActionController _ac,
+        bytes32 _aType
     ) external;
-
-    //Only callable by LOCATION_CONTROLLER
-    function LOCATION_CONTROLLER_onDeparture(
+    function executeAction(
         IEntity _entity,
         uint256 _entityID,
-        ILocation _to
+        IActionController _ac,
+        bytes32 _aType,
+        address _param
     ) external;
-
-    function validSourceSet()
-        external
-        returns (EnumerableSetAccessControlViewableAddress validSourceSet_);
-    function validDestinationSet()
-        external
-        returns (
-            EnumerableSetAccessControlViewableAddress validDestinationSet_
-        );
+    function executeAction(
+        IEntity _entity,
+        uint256 _entityID,
+        IActionController _ac,
+        bytes32 _aType,
+        uint256 _param
+    ) external;
+    function executeAction(
+        IEntity _entity,
+        uint256 _entityID,
+        IActionController _ac,
+        bytes32 _aType,
+        bytes32 _param
+    ) external;
+    function executeAction(
+        IEntity _entity,
+        uint256 _entityID,
+        IActionController _ac,
+        bytes32 _aType,
+        bytes[] calldata _param
+    ) external;
+    function addActionController(IActionController _ac) external;
+    function deleteActionController(IActionController _ac) external;
 }

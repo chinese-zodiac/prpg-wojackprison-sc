@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
 pragma solidity >=0.8.23;
-import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {IAuthorizer} from "../interfaces/IAuthorizer.sol";
+import {Authorized} from "../Authorized.sol";
 
-contract EnumerableSetAccessControlViewableUint256 is AccessControlEnumerable {
+contract EnumerableSetAccessControlViewableUint256 is Authorized {
     using EnumerableSet for EnumerableSet.UintSet;
-    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     EnumerableSet.UintSet set;
 
@@ -15,13 +15,9 @@ contract EnumerableSetAccessControlViewableUint256 is AccessControlEnumerable {
 
     error NotInSet(uint256 number);
 
-    constructor() {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-    }
+    constructor(IAuthorizer _authorizer) Authorized(_authorizer) {}
 
-    function addMultiple(
-        uint256[] calldata _numbers
-    ) external onlyRole(MANAGER_ROLE) {
+    function addMultiple(uint256[] calldata _numbers) external onlyManager {
         for (uint i; i < _numbers.length; i++) {
             uint256 number = _numbers[i];
             if (!set.contains(number)) {
@@ -31,9 +27,7 @@ contract EnumerableSetAccessControlViewableUint256 is AccessControlEnumerable {
         }
     }
 
-    function removeMultiple(
-        uint256[] calldata _numbers
-    ) external onlyRole(MANAGER_ROLE) {
+    function removeMultiple(uint256[] calldata _numbers) external onlyManager {
         for (uint i; i < _numbers.length; i++) {
             uint256 number = _numbers[i];
             if (set.contains(number)) {
@@ -43,14 +37,14 @@ contract EnumerableSetAccessControlViewableUint256 is AccessControlEnumerable {
         }
     }
 
-    function add(uint256 _number) external onlyRole(MANAGER_ROLE) {
+    function add(uint256 _number) external onlyManager {
         if (!set.contains(_number)) {
             set.add(_number);
             emit Add(_number);
         }
     }
 
-    function remove(uint256 _number) external onlyRole(MANAGER_ROLE) {
+    function remove(uint256 _number) external onlyManager {
         if (set.contains(_number)) {
             set.remove(_number);
             emit Remove(_number);

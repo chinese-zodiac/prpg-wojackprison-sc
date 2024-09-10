@@ -6,10 +6,10 @@ import {AccessRoleManager} from "./AccessRoleManager.sol";
 import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import {EnumerableSetAccessControlViewableAddress} from "./utils/EnumerableSetAccessControlViewableAddress.sol";
 import {EnumerableSetAccessControlViewableBytes32} from "./utils/EnumerableSetAccessControlViewableBytes32.sol";
-import {ILocationController} from "./interfaces/ILocationController.sol";
 import {IEntity} from "./interfaces/IEntity.sol";
 import {CheapRNG} from "./CheapRNG.sol";
 import {BoostedValueCalculator} from "./BoostedValueCalculator.sol";
+import {ActionControllerRegistry} from "./ActionControllerRegistry.sol";
 import {EntityStoreERC20} from "./EntityStoreERC20.sol";
 import {EntityStoreERC721} from "./EntityStoreERC721.sol";
 
@@ -19,10 +19,10 @@ contract RegionSettings is AccessRoleManager {
     uint256 public taxBps;
     IEntity public player;
     CheapRNG public cheapRng;
-    ILocationController public locationController;
     EnumerableSetAccessControlViewableBytes32 public eTypesSet;
     EnumerableSetAccessControlViewableAddress public validEntitySet;
     EnumerableSetAccessControlViewableAddress public spawnPointsSet;
+    ActionControllerRegistry public actionControllerRegistry;
     EntityStoreERC20 public entityStoreERC20;
     EntityStoreERC721 public entityStoreERC721;
     EnumerableSetAccessControlViewableAddress public transferableItemsSet;
@@ -34,13 +34,15 @@ contract RegionSettings is AccessRoleManager {
     event SetTaxBps(uint256 taxBps);
     event SetPlayer(IEntity player);
     event SetCheapRng(CheapRNG cheapRng);
-    event SetLocationController(ILocationController locationController);
     event SetETypesSet(EnumerableSetAccessControlViewableBytes32 eTypesSet);
     event SetValidEntitySet(
         EnumerableSetAccessControlViewableAddress validEntitySet
     );
     event SetSpawnPointsSet(
         EnumerableSetAccessControlViewableAddress spawnPointsSet
+    );
+    event SetActionControllerRegistry(
+        ActionControllerRegistry actionControllerRegistry
     );
     event SetEntityStoreERC20(EntityStoreERC20 entityStoreERC20);
     event SetEntityStoreERC721(EntityStoreERC721 entityStoreERC721);
@@ -58,10 +60,10 @@ contract RegionSettings is AccessRoleManager {
         uint256 _taxBps,
         IEntity _player,
         CheapRNG _cheapRng,
-        ILocationController _locationController,
         EnumerableSetAccessControlViewableBytes32 _eTypesSet,
         EnumerableSetAccessControlViewableAddress _validEntitySet,
         EnumerableSetAccessControlViewableAddress _spawnPointsSet,
+        ActionControllerRegistry _actionControllerRegistry,
         EntityStoreERC20 _entityStoreERC20,
         EntityStoreERC721 _entityStoreERC721,
         EnumerableSetAccessControlViewableAddress _transferableItemsSet,
@@ -73,10 +75,10 @@ contract RegionSettings is AccessRoleManager {
         taxBps = _taxBps;
         player = _player;
         cheapRng = _cheapRng;
-        locationController = _locationController;
         eTypesSet = _eTypesSet;
         validEntitySet = _validEntitySet;
         spawnPointsSet = _spawnPointsSet;
+        actionControllerRegistry = _actionControllerRegistry;
         entityStoreERC20 = _entityStoreERC20;
         entityStoreERC721 = _entityStoreERC721;
         transferableItemsSet = _transferableItemsSet;
@@ -87,10 +89,10 @@ contract RegionSettings is AccessRoleManager {
         emit SetTaxBps(taxBps);
         emit SetPlayer(player);
         emit SetCheapRng(cheapRng);
-        emit SetLocationController(locationController);
         emit SetETypesSet(eTypesSet);
         emit SetValidEntitySet(validEntitySet);
         emit SetSpawnPointsSet(spawnPointsSet);
+        emit SetActionControllerRegistry(actionControllerRegistry);
         emit SetEntityStoreERC20(entityStoreERC20);
         emit SetEntityStoreERC721(entityStoreERC721);
         emit SetTransferableItemsSet(transferableItemsSet);
@@ -118,12 +120,6 @@ contract RegionSettings is AccessRoleManager {
         cheapRng = _cheapRng;
         emit SetCheapRng(cheapRng);
     }
-    function setLocationController(
-        ILocationController _locationController
-    ) external onlyManager {
-        locationController = _locationController;
-        emit SetLocationController(locationController);
-    }
     function setETypesSet(
         EnumerableSetAccessControlViewableBytes32 _eTypesSet
     ) external onlyManager {
@@ -141,6 +137,12 @@ contract RegionSettings is AccessRoleManager {
     ) external onlyManager {
         spawnPointsSet = _spawnPointsSet;
         emit SetSpawnPointsSet(spawnPointsSet);
+    }
+    function setActionControllerRegistry(
+        ActionControllerRegistry _actionControllerRegistry
+    ) external onlyManager {
+        actionControllerRegistry = _actionControllerRegistry;
+        emit SetActionControllerRegistry(actionControllerRegistry);
     }
     function setEntityStoreERC20(
         EntityStoreERC20 _entityStoreERC20

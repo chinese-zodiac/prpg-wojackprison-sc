@@ -5,6 +5,7 @@ pragma solidity ^0.8.23;
 import {LocBase} from "./LocBase.sol";
 import {BoostedValueCalculator} from "../BoostedValueCalculator.sol";
 import {IEntity} from "../interfaces/IEntity.sol";
+import {ILocation} from "../interfaces/ILocation.sol";
 
 abstract contract LocPlayerWithStats is LocBase {
     error OnlyPlayerOwner(uint256 playerID, address sender);
@@ -24,7 +25,17 @@ abstract contract LocPlayerWithStats is LocBase {
         IEntity player = regionSettings.player();
         BoostedValueCalculator bcalc = regionSettings.boostedValueCalculator();
         return
-            bcalc.getBoosterAccSum(this, statHashAdd, player, playerID) *
-            bcalc.getBoosterAccMul(this, statHashMul, player, playerID);
+            bcalc.getBoosterAccSum(
+                ILocation(address(this)),
+                statHashAdd,
+                player,
+                playerID
+            ) *
+            bcalc.getBoosterAccMul(
+                ILocation(address(this)),
+                statHashMul,
+                player,
+                playerID
+            );
     }
 }

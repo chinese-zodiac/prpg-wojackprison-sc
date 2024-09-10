@@ -57,11 +57,11 @@ contract LocationController is ILocationController {
             revert InvalidDestination(_entity, _entityId, _prev, _dest);
         }
 
-        _prev.LOCATION_CONTROLLER_onDeparture(_entity, _entityId, _dest);
+        //_prev.LOCATION_CONTROLLER_onDeparture(_entity, _entityId, _dest);
         locationEntityIdSet[_prev][_entity].remove(_entityId);
         locationEntityIdSet[_dest][_entity].add(_entityId);
         entityIdLocation[_entity][_entityId] = _dest;
-        _dest.LOCATION_CONTROLLER_onArrival(_entity, _entityId, _prev);
+        //_dest.LOCATION_CONTROLLER_onArrival(_entity, _entityId, _prev);
 
         if (
             locationEntityIdSet[_prev][_entity].getContains(_entityId) ||
@@ -92,11 +92,11 @@ contract LocationController is ILocationController {
             revert MoveFailed(_entity, _entityId, ILocation(address(0x0)), _to);
         }
         emit Move(_entity, _entityId, ILocation(address(0x0)), _to);
-        _to.LOCATION_CONTROLLER_onArrival(
+        /*_to.LOCATION_CONTROLLER_onArrival(
             _entity,
             _entityId,
             ILocation(address(0x0))
-        );
+        );*/
     }
 
     //despawns an entity, so it is no longer tracked as at a specific location.
@@ -115,11 +115,11 @@ contract LocationController is ILocationController {
         }
 
         emit Move(_entity, _entityId, _prev, ILocation(address(0x0)));
-        _prev.LOCATION_CONTROLLER_onDeparture(
+        /*_prev.LOCATION_CONTROLLER_onDeparture(
             _entity,
             _entityId,
             ILocation(address(0x0))
-        );
+        );*/
         delete entityIdLocation[_entity][_entityId];
         if (locationEntityIdSet[_prev][_entity].getContains(_entityId)) {
             revert MoveFailed(

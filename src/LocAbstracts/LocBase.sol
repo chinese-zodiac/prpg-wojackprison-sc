@@ -7,7 +7,7 @@ import {ILocationController} from "../interfaces/ILocationController.sol";
 import {IEntity} from "../interfaces/IEntity.sol";
 import {EnumerableSetAccessControlViewableAddress} from "../utils/EnumerableSetAccessControlViewableAddress.sol";
 
-abstract contract LocBase is HasRegionSettings, ILocation {
+abstract contract LocBase is HasRegionSettings {
     EnumerableSetAccessControlViewableAddress public validSourceSet;
     EnumerableSetAccessControlViewableAddress public validDestinationSet;
     event OnDeparture(IEntity entity, uint256 entityID, ILocation to);
@@ -29,12 +29,12 @@ abstract contract LocBase is HasRegionSettings, ILocation {
     }
 
     modifier onlyLocationController() {
-        if (msg.sender != address(regionSettings.locationController())) {
+        /*if (msg.sender != address(regionSettings.locationController())) {
             revert OnlyLocationController(
                 msg.sender,
                 regionSettings.locationController()
             );
-        }
+        }*/
         _;
     }
 
@@ -47,13 +47,13 @@ abstract contract LocBase is HasRegionSettings, ILocation {
 
     modifier onlyLocalEntity(IEntity _entity, uint256 _entityId) {
         if (
-            address(this) !=
+            true /*address(this) !=
             address(
                 regionSettings.locationController().entityIdLocation(
                     _entity,
                     _entityId
                 )
-            )
+            )*/
         ) {
             revert OnlyLocalEntity(_entity, _entityId);
         }

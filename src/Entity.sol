@@ -13,6 +13,7 @@ import {Counters} from "./libs/Counters.sol";
 import {IEntity} from "./interfaces/IEntity.sol";
 import {ILocation} from "./interfaces/ILocation.sol";
 import {ILocationController} from "./interfaces/ILocationController.sol";
+import {ACMove} from "./actionController/move/ACMove.sol";
 
 contract Entity is
     IEntity,
@@ -23,6 +24,8 @@ contract Entity is
     using Counters for Counters.Counter;
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+
+    bytes32 public constant AC_MOVE_KEY = keccak256("AC_MOVE");
 
     Counters.Counter private _tokenIdTracker;
 
@@ -55,9 +58,22 @@ contract Entity is
         // We cannot just use balanceOf to create the new tokenId because tokens
         // can be burned (destroyed), so we need a separate counter.
         uint256 newTokenId = _tokenIdTracker.current();
-        _mint(address(this), newTokenId);
+        ERC721._mint(address(this), newTokenId);
 
-        regionSettings.locationController().spawn(this, newTokenId, _location);
+        ACMove acMove = ACMove(
+            address(
+                regionSettings.actionControllerRegistry().actionControllers(
+                    AC_MOVE_KEY
+                )
+            )
+        );
+        acMove.execute(
+            _location,
+            msg.sender,
+            IEntity(this),
+            newTokenId,
+            acMove.ACTION_SPAWN()
+        );
 
         EntityInfo storage info = entityInfo[newTokenId];
 
@@ -74,7 +90,20 @@ contract Entity is
     function burn(
         uint256 _nftId
     ) public virtual override(IEntity, ERC721Burnable) {
-        regionSettings.locationController().despawn(this, _nftId);
+        ACMove acMove = ACMove(
+            address(
+                regionSettings.actionControllerRegistry().actionControllers(
+                    AC_MOVE_KEY
+                )
+            )
+        );
+        acMove.execute(
+            ILocation(address(0x0)),
+            msg.sender,
+            IEntity(this),
+            _nftId,
+            acMove.ACTION_DESPAWN()
+        );
         ERC721Burnable.burn(_nftId);
     }
 

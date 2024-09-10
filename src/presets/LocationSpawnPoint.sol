@@ -51,7 +51,7 @@ contract LocationSpawnPoint is LocBase, LocTransferItem {
             revert OverSpawnCap(eType, reqs.spawnCurrent, reqs.spawnCap);
         }
         PlayerCharacters(address(regionSettings.player())).requestMint(
-            ILocation(this),
+            ILocation(address(this)),
             eType,
             receiver
         );

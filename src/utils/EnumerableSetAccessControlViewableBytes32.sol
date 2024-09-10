@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
 pragma solidity >=0.8.23;
-import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {IAuthorizer} from "../interfaces/IAuthorizer.sol";
+import {Authorized} from "../Authorized.sol";
 
-contract EnumerableSetAccessControlViewableBytes32 is AccessControlEnumerable {
+contract EnumerableSetAccessControlViewableBytes32 is Authorized {
     using EnumerableSet for EnumerableSet.Bytes32Set;
-    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     EnumerableSet.Bytes32Set set;
 
@@ -15,13 +15,9 @@ contract EnumerableSetAccessControlViewableBytes32 is AccessControlEnumerable {
 
     error NotInSet(bytes32 data);
 
-    constructor() {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-    }
+    constructor(IAuthorizer _authorizer) Authorized(_authorizer) {}
 
-    function addMultiple(
-        bytes32[] calldata _datas
-    ) external onlyRole(MANAGER_ROLE) {
+    function addMultiple(bytes32[] calldata _datas) external onlyManager {
         for (uint i; i < _datas.length; i++) {
             bytes32 data = _datas[i];
             if (!set.contains(data)) {
@@ -31,9 +27,7 @@ contract EnumerableSetAccessControlViewableBytes32 is AccessControlEnumerable {
         }
     }
 
-    function removeMultiple(
-        bytes32[] calldata _datas
-    ) external onlyRole(MANAGER_ROLE) {
+    function removeMultiple(bytes32[] calldata _datas) external onlyManager {
         for (uint i; i < _datas.length; i++) {
             bytes32 data = _datas[i];
             if (set.contains(data)) {
@@ -43,14 +37,14 @@ contract EnumerableSetAccessControlViewableBytes32 is AccessControlEnumerable {
         }
     }
 
-    function add(bytes32 _data) external onlyRole(MANAGER_ROLE) {
+    function add(bytes32 _data) external onlyManager {
         if (!set.contains(_data)) {
             set.add(_data);
             emit Add(_data);
         }
     }
 
-    function remove(bytes32 _data) external onlyRole(MANAGER_ROLE) {
+    function remove(bytes32 _data) external onlyManager {
         if (set.contains(_data)) {
             set.remove(_data);
             emit Remove(_data);
