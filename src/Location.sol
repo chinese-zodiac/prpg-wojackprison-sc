@@ -3,208 +3,92 @@
 pragma solidity ^0.8.23;
 import {ILocation} from "./interfaces/ILocation.sol";
 import {IEntity} from "./interfaces/IEntity.sol";
-import {IActionController} from "./interfaces/IActionController.sol";
+import {IKey} from "./interfaces/IKey.sol";
+import {IAction} from "./interfaces/IAction.sol";
 import {IAuthorizer} from "./interfaces/IAuthorizer.sol";
 import {Authorizer} from "./Authorizer.sol";
 import {RegionSettings} from "./RegionSettings.sol";
-import {EnumerableSetAccessControlViewableAddress} from "./utils/EnumerableSetAccessControlViewableAddress.sol";
+import {EnumerableSetAccessControlViewableBytes32} from "./utils/EnumerableSetAccessControlViewableBytes32.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {HasRSBlacklist} from "./utils/HasRSBlacklist.sol";
 
-contract Location is Authorizer, ILocation {
-    EnumerableSetAccessControlViewableAddress public acSet;
-    RegionSettings public regionSettings;
-
-    event SetRegionSettings(RegionSettings regionSettings);
+contract Location is ReentrancyGuard, HasRSBlacklist, Authorizer, ILocation {
+    bytes32 public immutable SETTER_ROLE = bytes32("SETTER_ROLE");
+    EnumerableSetAccessControlViewableBytes32 public actionSet;
+    mapping(bytes32 actionKey => IAction action) public actions;
 
     event ExecuteAction(
-        ILocation location,
         address sender,
+        ILocation location,
         IEntity entity,
         uint256 entityID,
-        bytes32 aType
+        bytes32 actionKey,
+        IAction action
     );
-    event SetActionSet(EnumerableSetAccessControlViewableAddress acSet);
+    event SetActionSet(EnumerableSetAccessControlViewableBytes32 actionSet);
 
-    error InvalidAction(IActionController ac);
-    error InvalidActionParam(
-        IActionController ac,
-        bytes32 aType,
-        IActionController.PARAM expectedParam,
-        IActionController.PARAM actualParam
-    );
+    error InvalidAction(IAction ac);
+    error FailedDatastoreCommit(address datastore, bytes data);
 
-    constructor(address _manager, RegionSettings _regionSettings) {
-        regionSettings = _regionSettings;
-        emit SetRegionSettings(regionSettings);
-
-        acSet = new EnumerableSetAccessControlViewableAddress(
+    modifier onlySetter() {
+        revertIfNotAuthorized(SETTER_ROLE, msg.sender);
+        _;
+    }
+    constructor(address _setter, RegionSettings _rs) HasRSBlacklist(_rs) {
+        revertIfAccountBlacklisted(_setter);
+        revertIfAccountBlacklisted(msg.sender);
+        actionSet = new EnumerableSetAccessControlViewableBytes32(
             IAuthorizer(this)
         );
-        emit SetActionSet(acSet);
+        emit SetActionSet(actionSet);
 
         _grantRole(DEFAULT_ADMIN_ROLE, regionSettings.governance());
-        _grantRole(MANAGER_ROLE, _manager);
+        _grantRole(SETTER_ROLE, _setter);
+        _grantRole(MANAGER_ROLE, address(this));
     }
 
     function executeAction(
         IEntity _entity,
         uint256 _entityID,
-        IActionController _ac,
-        bytes32 _aType
-    ) external {
-        _revertIfActionControllerNotInLocation(_ac);
-        _sendEvents(
+        bytes32 _actionKey,
+        bytes calldata _param
+    ) external nonReentrant blacklisted blacklistedEntity(_entity, _entityID) {
+        actionSet.revertIfNotInSet(_actionKey);
+        actions[_actionKey].execute(
+            msg.sender,
+            this,
             _entity,
             _entityID,
-            _aType,
-            _ac.execute(
-                ILocation(address(this)),
-                msg.sender,
-                _entity,
-                _entityID,
-                _aType
-            )
+            _param
         );
     }
 
-    function executeAction(
-        IEntity _entity,
-        uint256 _entityID,
-        IActionController _ac,
-        bytes32 _aType,
-        address _param
-    ) external {
-        _revertIfActionControllerNotInLocation(_ac);
-        _sendEvents(
-            _entity,
-            _entityID,
-            _aType,
-            _ac.execute(
-                ILocation(address(this)),
-                msg.sender,
-                _entity,
-                _entityID,
-                _aType,
-                _param
-            )
-        );
-    }
-
-    function executeAction(
-        IEntity _entity,
-        uint256 _entityID,
-        IActionController _ac,
-        bytes32 _aType,
-        uint256 _param
-    ) external {
-        _revertIfActionControllerNotInLocation(_ac);
-        _sendEvents(
-            _entity,
-            _entityID,
-            _aType,
-            _ac.execute(
-                ILocation(address(this)),
-                msg.sender,
-                _entity,
-                _entityID,
-                _aType,
-                _param
-            )
-        );
-    }
-
-    function executeAction(
-        IEntity _entity,
-        uint256 _entityID,
-        IActionController _ac,
-        bytes32 _aType,
-        bytes32 _param
-    ) external {
-        _revertIfActionControllerNotInLocation(_ac);
-        _sendEvents(
-            _entity,
-            _entityID,
-            _aType,
-            _ac.execute(
-                ILocation(address(this)),
-                msg.sender,
-                _entity,
-                _entityID,
-                _aType,
-                _param
-            )
-        );
-    }
-
-    function executeAction(
-        IEntity _entity,
-        uint256 _entityID,
-        IActionController _ac,
-        bytes32 _aType,
-        bytes[] calldata _param
-    ) external {
-        _revertIfActionControllerNotInLocation(_ac);
-        _sendEvents(
-            _entity,
-            _entityID,
-            _aType,
-            _ac.execute(
-                ILocation(address(this)),
-                msg.sender,
-                _entity,
-                _entityID,
-                _aType,
-                _param
-            )
-        );
-    }
-
-    function setRegionSettings(
-        RegionSettings _regionSettings
-    ) external onlyManager {
-        regionSettings = _regionSettings;
-        emit SetRegionSettings(regionSettings);
-    }
-
-    function _sendEvents(
-        IEntity _entity,
-        uint256 _entityID,
-        bytes32 _aType,
-        bytes32[] memory events
-    ) internal {
-        for (uint256 i; i < events.length; i++) {
-            bytes32 e = events[i];
-            for (uint256 j; j < acSet.getLength(); j++) {
-                IActionController a = IActionController(acSet.getAt(j));
-                if (a.LISTEN_SET().getContains(e)) {
-                    a.onEvent(
-                        ILocation(address(this)),
-                        msg.sender,
-                        _entity,
-                        _entityID,
-                        _aType
-                    );
-                }
-            }
+    function commitToDatastore(address _ds, bytes calldata _data) external {
+        bytes32 actionKey = IKey(msg.sender).KEY();
+        actionSet.revertIfNotInSet(actionKey);
+        if (actions[actionKey] != IAction(msg.sender)) {
+            revert InvalidAction(IAction(msg.sender));
+        }
+        //1. For security, most DataStores require the sender to be the Entity's current location.
+        //2. Actions need to store their own data, such as registry keys,
+        // so ac.execute() cannot be delegatecall.
+        //1 & 2 is why the AC encodes the call and passes it to the Location.
+        //This means for security Locations should ONLY add trusted Actions,
+        //but it also means that a malicious Action can only steal from EntityIds that are at the hacked Location.
+        //Actions should use `abi.encodeCall` for type checking to encode the call.
+        (bool success, ) = _ds.call(_data);
+        if (!success) {
+            revert FailedDatastoreCommit(_ds, _data);
         }
     }
 
-    function _revertIfActionControllerNotInLocation(
-        IActionController _ac
-    ) internal view {
-        if (!acSet.getContains(address(_ac))) {
-            revert InvalidAction(_ac);
-        }
+    function addAction(IAction _action) external onlySetter {
+        actionSet.add(_action.KEY());
+        _action.start();
     }
 
-    function addActionController(IActionController _ac) external onlyManager {
-        acSet.add(address(_ac));
-        _ac.start();
-    }
-
-    function deleteActionController(
-        IActionController _ac
-    ) external onlyManager {
-        acSet.remove(address(_ac));
-        _ac.stop();
+    function deleteAction(IAction _action) external onlySetter {
+        actionSet.remove(_action.KEY());
+        _action.stop();
     }
 }

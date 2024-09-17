@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
 pragma solidity ^0.8.23;
-import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
-import {IBooster} from "./interfaces/IBooster.sol";
-import {IEntity} from "./interfaces/IEntity.sol";
-import {ILocation} from "./interfaces/ILocation.sol";
-import {EnumerableSetAccessControlViewableBytes32} from "./utils/EnumerableSetAccessControlViewableBytes32.sol";
-import {EnumerableSetAccessControlViewableAddress} from "./utils/EnumerableSetAccessControlViewableAddress.sol";
+import {IBooster} from "../interfaces/IBooster.sol";
+import {IEntity} from "../interfaces/IEntity.sol";
+import {ILocation} from "../interfaces/ILocation.sol";
+import {EnumerableSetAccessControlViewableBytes32} from "../utils/EnumerableSetAccessControlViewableBytes32.sol";
+import {EnumerableSetAccessControlViewableAddress} from "../utils/EnumerableSetAccessControlViewableAddress.sol";
+import {Authorizer} from "../Authorizer.sol";
+import {ManagerRole} from "../roles/ManagerRole.sol";
 
 //WARNING: Setting too many IBooster for a keyHash could make the gas cost explode
-contract BoostedValueCalculator is AccessControlEnumerable {
-    bytes32 public constant BOOSTER_MANAGER = keccak256("BOOSTER_MANAGER");
-
+contract BoostedValueCalculator is ManagerRole, Authorizer {
     mapping(bytes32 keyHash => EnumerableSetAccessControlViewableAddress set) boosterSet;
 
     event SetBoostersMulSet(
@@ -23,9 +22,9 @@ contract BoostedValueCalculator is AccessControlEnumerable {
         EnumerableSetAccessControlViewableAddress set
     );
 
-    constructor() {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(BOOSTER_MANAGER, msg.sender);
+    constructor(address governance, address manager) {
+        _grantRole(DEFAULT_ADMIN_ROLE, governance);
+        _grantRole(MANAGER_ROLE, manager);
     }
 
     function getBoosterAccSum(

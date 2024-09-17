@@ -2,9 +2,9 @@
 // Authored by Plastic Digits
 pragma solidity ^0.8.23;
 
-import {IBooster} from "./interfaces/IBooster.sol";
-import {IEntity} from "./interfaces/IEntity.sol";
-import {ILocation} from "./interfaces/ILocation.sol";
+import {IBooster} from "../interfaces/IBooster.sol";
+import {IEntity} from "../interfaces/IEntity.sol";
+import {ILocation} from "../interfaces/ILocation.sol";
 
 contract BoosterConstant is IBooster {
     uint256 public immutable value;

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import {RegionSettings} from "../RegionSettings.sol";
-import {AccessRoleManager} from "../AccessRoleManager.sol";
+import {AccessRoleManager} from "../roles/AccessRoleManager.sol";
 import {IHasRegionSettings} from "../interfaces/IHasRegionSettings.sol";
 
 contract HasRegionSettings is IHasRegionSettings, AccessRoleManager {
@@ -11,6 +11,7 @@ contract HasRegionSettings is IHasRegionSettings, AccessRoleManager {
 
     constructor(RegionSettings _regionSettings) {
         regionSettings = _regionSettings;
+        _grantRole(DEFAULT_ADMIN_ROLE, regionSettings.governance());
         emit SetRegionSettings(regionSettings);
     }
 

@@ -10,6 +10,7 @@ import {TokenBase} from "./TokenBase.sol";
 import "./presets/ERC20PresetMinterPauser.sol";
 import "./interfaces/IAmmFactory.sol";
 import "./interfaces/IAmmPair.sol";
+import "./TenXBlacklist.sol";
 
 //DEPLOYMENT INSTRUCTIONS
 //Should use a unique deployer address that is only used for deploying and nothing else
@@ -52,13 +53,14 @@ contract TokenBaseOptimism is
 
     constructor(
         address admin,
+        TenXBlacklistV2 _blacklist,
         string memory name,
         string memory ticker,
         uint256 _l1ChainID,
         uint256 _l2ChainID,
         address _l1Bridge, //l1 standard bridge address
         address _l2Bridge //l2 standard bridge address
-    ) TokenBase(admin, name, ticker) {
+    ) TokenBase(admin, _blacklist, name, ticker) {
         REMOTE_TOKEN = address(this);
         if (block.chainid == _l1ChainID) {
             BRIDGE = _l1Bridge;
@@ -118,6 +120,7 @@ contract TokenBaseOptimism is
             ERC20PresetMinterPauser
         )
     {
+        blacklist.revertIfAccountBlacklisted(to);
         ERC20PresetMinterPauser.mint(to, amount);
     }
 

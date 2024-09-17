@@ -5,7 +5,6 @@ import {RegionSettings} from "./RegionSettings.sol";
 import {Entity} from "./Entity.sol";
 import {CheapRNG} from "./CheapRNG.sol";
 import {ILocation} from "./interfaces/ILocation.sol";
-import {ILocationController} from "./interfaces/ILocationController.sol";
 import {EnumerableSetAccessControlViewableAddress} from "./utils/EnumerableSetAccessControlViewableAddress.sol";
 import {EnumerableSetAccessControlViewableBytes32} from "./utils/EnumerableSetAccessControlViewableBytes32.sol";
 
@@ -70,14 +69,14 @@ contract PlayerCharacters is Entity {
         if (_receiver == address(0x0)) {
             revert CannotSpawnToZeroAddress(_receiver);
         }
-        regionSettings.eTypesSet().revertIfNotInSet(_eType);
-        regionSettings.spawnPointsSet().revertIfNotInSet(address(_location));
-        requestID = regionSettings.cheapRng().requestRandom();
+
+        //TODO: Permissions for spawning
+        /*requestID = regionSettings.cheapRng().requestRandom();
         MintRequest storage req = requests[requestID];
         req.location = _location;
         req.eType = _eType;
         req.receiver = _receiver;
-        emit RequestMint(requestID, _eType, _location, _receiver);
+        emit RequestMint(requestID, _eType, _location, _receiver);*/
     }
 
     function fullfillMint(uint256 _requestID) external returns (uint256 nftID) {
@@ -85,11 +84,11 @@ contract PlayerCharacters is Entity {
         if (req.receiver == address(0x0)) {
             revert RequestIDDoesNotExist(_requestID);
         }
-        bytes32 randWord = regionSettings.cheapRng().fullfillRandom(_requestID);
+        /*bytes32 randWord = regionSettings.cheapRng().fullfillRandom(_requestID);
         nftID = _mint(req.receiver, req.location, req.eType, randWord);
         emit FullfillMint(_requestID, nftID, randWord);
         delete req.receiver;
         delete req.eType;
-        delete req.location;
+        delete req.location;*/
     }
 }

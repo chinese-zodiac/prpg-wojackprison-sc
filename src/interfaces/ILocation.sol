@@ -3,50 +3,27 @@
 // Credit to Pancakeswap
 pragma solidity ^0.8.23;
 import {IEntity} from "./IEntity.sol";
-import {IActionController} from "./IActionController.sol";
-import {EnumerableSetAccessControlViewableAddress} from "../utils/EnumerableSetAccessControlViewableAddress.sol";
+import {IAction} from "./IAction.sol";
+import {EnumerableSetAccessControlViewableBytes32} from "../utils/EnumerableSetAccessControlViewableBytes32.sol";
 import {IHasRegionSettings} from "./IHasRegionSettings.sol";
 import {IAuthorizer} from "./IAuthorizer.sol";
 
 interface ILocation is IHasRegionSettings, IAuthorizer {
-    function acSet()
+    function SETTER_ROLE() external returns (bytes32);
+    function actionSet()
         external
         view
-        returns (EnumerableSetAccessControlViewableAddress set);
+        returns (EnumerableSetAccessControlViewableBytes32 set);
+    function actions(
+        bytes32 _actionKey
+    ) external view returns (IAction _action);
     function executeAction(
         IEntity _entity,
         uint256 _entityID,
-        IActionController _ac,
-        bytes32 _aType
+        bytes32 _actionKey,
+        bytes calldata _param
     ) external;
-    function executeAction(
-        IEntity _entity,
-        uint256 _entityID,
-        IActionController _ac,
-        bytes32 _aType,
-        address _param
-    ) external;
-    function executeAction(
-        IEntity _entity,
-        uint256 _entityID,
-        IActionController _ac,
-        bytes32 _aType,
-        uint256 _param
-    ) external;
-    function executeAction(
-        IEntity _entity,
-        uint256 _entityID,
-        IActionController _ac,
-        bytes32 _aType,
-        bytes32 _param
-    ) external;
-    function executeAction(
-        IEntity _entity,
-        uint256 _entityID,
-        IActionController _ac,
-        bytes32 _aType,
-        bytes[] calldata _param
-    ) external;
-    function addActionController(IActionController _ac) external;
-    function deleteActionController(IActionController _ac) external;
+    function commitToDatastore(address _ds, bytes calldata _data) external;
+    function addAction(IAction _action) external;
+    function deleteAction(IAction _action) external;
 }

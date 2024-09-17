@@ -12,8 +12,6 @@ import {IERC721Enumerable} from "@openzeppelin/contracts/interfaces/IERC721Enume
 import {Counters} from "./libs/Counters.sol";
 import {IEntity} from "./interfaces/IEntity.sol";
 import {ILocation} from "./interfaces/ILocation.sol";
-import {ILocationController} from "./interfaces/ILocationController.sol";
-import {ACMove} from "./actionController/move/ACMove.sol";
 
 contract Entity is
     IEntity,
@@ -46,7 +44,6 @@ contract Entity is
 
     function _mint(
         address _to,
-        ILocation _location,
         bytes32 _eType,
         bytes32 _randWord
     ) internal virtual returns (uint256 id_) {
@@ -59,21 +56,6 @@ contract Entity is
         // can be burned (destroyed), so we need a separate counter.
         uint256 newTokenId = _tokenIdTracker.current();
         ERC721._mint(address(this), newTokenId);
-
-        ACMove acMove = ACMove(
-            address(
-                regionSettings.actionControllerRegistry().actionControllers(
-                    AC_MOVE_KEY
-                )
-            )
-        );
-        acMove.execute(
-            _location,
-            msg.sender,
-            IEntity(this),
-            newTokenId,
-            acMove.ACTION_SPAWN()
-        );
 
         EntityInfo storage info = entityInfo[newTokenId];
 
@@ -90,20 +72,6 @@ contract Entity is
     function burn(
         uint256 _nftId
     ) public virtual override(IEntity, ERC721Burnable) {
-        ACMove acMove = ACMove(
-            address(
-                regionSettings.actionControllerRegistry().actionControllers(
-                    AC_MOVE_KEY
-                )
-            )
-        );
-        acMove.execute(
-            ILocation(address(0x0)),
-            msg.sender,
-            IEntity(this),
-            _nftId,
-            acMove.ACTION_DESPAWN()
-        );
         ERC721Burnable.burn(_nftId);
     }
 

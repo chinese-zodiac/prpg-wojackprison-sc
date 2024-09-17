@@ -1,30 +1,43 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.23;
-import {IEntity} from "./interfaces/IEntity.sol";
-import {IERC721} from "@openzeppelin/contracts/interfaces/IERC721.sol";
+import {IEntity} from "../interfaces/IEntity.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {ILocation} from "./interfaces/ILocation.sol";
-import {ILocationController} from "./interfaces/ILocationController.sol";
+import {DatastoreEntityLocation} from "./DatastoreEntityLocation.sol";
+import {Authorizer} from "../Authorizer.sol";
+import {RegionSettings} from "../RegionSettings.sol";
+import {HasRSBlacklist} from "../utils/HasRSBlacklist.sol";
+import {EnumerableSetAccessControlViewableAddress} from "../utils/EnumerableSetAccessControlViewableAddress.sol";
+import {IKey} from "../interfaces/IKey.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-//Permisionless EntityStoreERC20
+//Permisionless EntityERC20Datastore.
 //Deposit/withdraw/transfer tokens that are stored to a particular entity
 //deposit/withdraw/transfers are restricted to the entity's current location.
-contract EntityStoreERC20 is Ownable, Pausable {
+contract DatastoreEntityERC20 is
+    ReentrancyGuard,
+    HasRSBlacklist,
+    Authorizer,
+    IKey
+{
+    bytes32 public constant KEY = keccak256("DATASTORE_ENTITY_ERC20");
+    bytes32 public constant DATASTORE_ENTITY_LOCATION =
+        keccak256("DATASTORE_ENTITY_LOCATION");
     using SafeERC20 for IERC20;
 
     mapping(IERC721 entity => mapping(uint256 entityId => mapping(IERC20 token => uint256 shares)))
         public entityStoredERC20Shares;
+
+    mapping(IERC721 entity => mapping(uint256 entityId => EnumerableSetAccessControlViewableAddress tokens))
+        public entityStoredTokens;
+
     //Neccessary for rebasing, tax, liquid staking, or other tokens
     //that may directly modify this contract's balance.
     mapping(IERC20 token => uint256 shares) public totalShares;
     //Initial precision for shares per token
     uint256 internal constant SHARES_PRECISION = 10 ** 8;
-
-    ILocationController public immutable locationController;
 
     event Deposit(
         IEntity entity,
@@ -53,20 +66,16 @@ contract EntityStoreERC20 is Ownable, Pausable {
         uint256 tokenWad
     );
 
-    error OnlyEntityLocation(address sender, IEntity entity, uint256 entityId);
-
-    modifier onlyEntitysLocation(IEntity _entity, uint256 _entityId) {
-        if (
-            msg.sender !=
-            address(locationController.entityIdLocation(_entity, _entityId))
-        ) {
-            revert OnlyEntityLocation(msg.sender, _entity, _entityId);
-        }
+    modifier onlyEntityLocation(IEntity _entity, uint256 _entityId) {
+        DatastoreEntityLocation(
+            regionSettings.registries(DATASTORE_ENTITY_LOCATION)
+        ).revertIfNotAccountIsEntityLocation(msg.sender, _entity, _entityId);
         _;
     }
 
-    constructor(ILocationController _locationController) Ownable(msg.sender) {
-        locationController = _locationController;
+    constructor(RegionSettings _rs) HasRSBlacklist(_rs) {
+        _grantRole(DEFAULT_ADMIN_ROLE, _rs.governance());
+        _grantRole(MANAGER_ROLE, address(this));
     }
 
     function deposit(
@@ -74,14 +83,16 @@ contract EntityStoreERC20 is Ownable, Pausable {
         uint256 _entityId,
         IERC20 _token,
         uint256 _wad
-    ) external onlyEntitysLocation(_entity, _entityId) whenNotPaused {
+    )
+        external
+        nonReentrant
+        onlyEntityLocation(_entity, _entityId)
+        blacklistedEntity(_entity, _entityId)
+    {
+        if (_wad == 0) return;
         uint256 expectedShares = convertTokensToShares(_token, _wad);
         uint256 initialTokens = _token.balanceOf(address(this));
-        _token.safeTransferFrom(
-            address(locationController.entityIdLocation(_entity, _entityId)),
-            address(this),
-            _wad
-        );
+        _token.safeTransferFrom(msg.sender, address(this), _wad);
         //May be different than _wad due to transfer tax/burn
         uint256 deltaTokens = _token.balanceOf(address(this)) - initialTokens;
         uint256 newShares = (deltaTokens * expectedShares) / _wad;
@@ -94,15 +105,19 @@ contract EntityStoreERC20 is Ownable, Pausable {
         IEntity _entity,
         uint256 _entityId,
         IERC20 _token,
-        uint256 _wad
-    ) external onlyEntitysLocation(_entity, _entityId) whenNotPaused {
+        uint256 _wad,
+        address _receiver
+    )
+        external
+        nonReentrant
+        onlyEntityLocation(_entity, _entityId)
+        blacklistedEntity(_entity, _entityId)
+    {
+        if (_wad == 0) return;
         uint256 shares = convertTokensToShares(_token, _wad);
         entityStoredERC20Shares[_entity][_entityId][_token] -= shares;
         totalShares[_token] -= shares;
-        _token.safeTransfer(
-            address(locationController.entityIdLocation(_entity, _entityId)),
-            _wad
-        );
+        _token.safeTransfer(_receiver, _wad);
         emit Withdraw(_entity, _entityId, _token, _wad);
     }
 
@@ -115,10 +130,13 @@ contract EntityStoreERC20 is Ownable, Pausable {
         uint256 _wad
     )
         external
-        onlyEntitysLocation(_fromEntity, _fromEntityId)
-        onlyEntitysLocation(_toEntity, _toEntityId)
-        whenNotPaused
+        nonReentrant
+        onlyEntityLocation(_fromEntity, _fromEntityId)
+        onlyEntityLocation(_toEntity, _toEntityId)
+        blacklistedEntity(_fromEntity, _fromEntityId)
+        blacklistedEntity(_toEntity, _toEntityId)
     {
+        if (_wad == 0) return;
         uint256 shares = convertTokensToShares(_token, _wad);
         entityStoredERC20Shares[_fromEntity][_fromEntityId][_token] -= shares;
         entityStoredERC20Shares[_toEntity][_toEntityId][_token] += shares;
@@ -130,6 +148,7 @@ contract EntityStoreERC20 is Ownable, Pausable {
             _token,
             _wad
         );
+        deleteEntityUnusedTokens(_fromEntity, _fromEntityId, _token);
     }
 
     function burn(
@@ -137,12 +156,19 @@ contract EntityStoreERC20 is Ownable, Pausable {
         uint256 _entityId,
         ERC20Burnable _token,
         uint256 _wad
-    ) external onlyEntitysLocation(_entity, _entityId) whenNotPaused {
+    )
+        external
+        nonReentrant
+        onlyEntityLocation(_entity, _entityId)
+        blacklistedEntity(_entity, _entityId)
+    {
+        if (_wad == 0) return;
         uint256 shares = convertTokensToShares(_token, _wad);
         entityStoredERC20Shares[_entity][_entityId][_token] -= shares;
         totalShares[_token] -= shares;
         _token.burn(_wad);
         emit Burn(_entity, _entityId, _token, _wad);
+        deleteEntityUnusedTokens(_entity, _entityId, _token);
     }
 
     function convertTokensToShares(
@@ -169,19 +195,39 @@ contract EntityStoreERC20 is Ownable, Pausable {
     }
 
     //Escape hatch for emergency use
-    function recoverERC20(address tokenAddress) external onlyOwner {
+    function recoverERC20(
+        address tokenAddress
+    ) external nonReentrant onlyAdmin {
         IERC20(tokenAddress).safeTransfer(
             _msgSender(),
             IERC20(tokenAddress).balanceOf(address(this))
         );
     }
 
-    //Emergency pause/unpause
-    function pause() public onlyOwner {
-        _pause();
+    function updateSets(
+        IEntity _entity,
+        uint256 _entityId,
+        IERC20 _token
+    ) public {
+        if (address(entityStoredTokens[_entity][_entityId]) == address(0x0)) {
+            entityStoredTokens[_entity][
+                _entityId
+            ] = new EnumerableSetAccessControlViewableAddress(this);
+        }
+        if (
+            !entityStoredTokens[_entity][_entityId].getContains(address(_token))
+        ) {
+            entityStoredTokens[_entity][_entityId].add(address(_token));
+        }
     }
 
-    function unpause() public onlyOwner {
-        _unpause();
+    function deleteEntityUnusedTokens(
+        IEntity _entity,
+        uint256 _entityId,
+        IERC20 _token
+    ) public {
+        if (entityStoredERC20Shares[_entity][_entityId][_token] == 0) {
+            entityStoredTokens[_entity][_entityId].remove(address(_token));
+        }
     }
 }

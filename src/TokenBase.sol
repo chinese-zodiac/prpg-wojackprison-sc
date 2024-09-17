@@ -9,10 +9,12 @@ import "./interfaces/IERC20MetadataLogo.sol";
 import "./libs/AmmLibrary.sol";
 import "./interfaces/IAmmFactory.sol";
 import "./interfaces/IAmmPair.sol";
+import "./TenXBlacklist.sol";
 
 contract TokenBase is ERC20PresetMinterPauser, IERC20MetadataLogo {
     using SafeERC20 for IERC20;
     mapping(address account => bool isExempt) public isExempt;
+    TenXBlacklistV2 public blacklist;
 
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
@@ -28,12 +30,15 @@ contract TokenBase is ERC20PresetMinterPauser, IERC20MetadataLogo {
     event SetLogoUri(string ipfsCid);
     event SetAmmPair(IAmmPair ammCzusdPair);
     event SetMaxBurnBps(uint256 maxBurnBps);
+    event SetBlacklist(TenXBlacklistV2 blacklist);
 
     constructor(
         address admin,
+        TenXBlacklistV2 _blacklist,
         string memory name,
         string memory ticker
     ) ERC20PresetMinterPauser(name, ticker, admin) {
+        blacklist = _blacklist;
         _grantRole(MANAGER_ROLE, admin);
         isExempt[address(0x0)] = true; //no tax for mints and burns
         emit SetBurnBps(buyBurnBps, sellBurnBps);
@@ -47,6 +52,8 @@ contract TokenBase is ERC20PresetMinterPauser, IERC20MetadataLogo {
         uint256 amount
     ) internal override {
         //Handle burn
+        blacklist.revertIfAccountBlacklisted(sender);
+        blacklist.revertIfAccountBlacklisted(recipient);
         if (
             //No tax for exempt
             isExempt[sender] ||
