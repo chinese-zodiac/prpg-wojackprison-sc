@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
 pragma solidity ^0.8.23;
-import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {Authorizer} from "./Authorizer.sol";
 import {EnumerableSetAccessControlViewableBytes32} from "./utils/EnumerableSetAccessControlViewableBytes32.sol";
 import {TenXBlacklistV2} from "./TenXBlacklist.sol";
 import {IKey} from "./interfaces/IKey.sol";
 
-contract RegionSettings is Authorizer {
+contract GlobalSettings is Authorizer {
     address public governance;
     TenXBlacklistV2 public tenXBlacklist;
     EnumerableSetAccessControlViewableBytes32 public registryKeySet;

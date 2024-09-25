@@ -90,6 +90,7 @@ contract DatastoreEntityActionLock is
                 _unlockActionKey
             );
         }
+        //TODO: Check DatastoreLocationActions
         if (!ILocation(msg.sender).actionSet().getContains(_unlockActionKey)) {
             revert InvalidUnlockActionKey(_unlockActionKey);
         }

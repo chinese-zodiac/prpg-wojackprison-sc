@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.23;
 
-import {RegionSettings} from "./RegionSettings.sol";
-import {HasRegionSettings} from "./utils/HasRegionSettings.sol";
 import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
@@ -11,76 +9,58 @@ import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {IERC721Enumerable} from "@openzeppelin/contracts/interfaces/IERC721Enumerable.sol";
 import {Counters} from "./libs/Counters.sol";
 import {IEntity} from "./interfaces/IEntity.sol";
-import {ILocation} from "./interfaces/ILocation.sol";
+import {ModifierBlacklisted} from "./utils/ModifierBlacklisted.sol";
+import {ModifierOnlySpawner} from "./utils/ModifierOnlySpawner.sol";
+import {Spawner} from "./Spawner.sol";
+import {Executor} from "./Executor.sol";
+import {Authorizer} from "./Authorizer.sol";
+import {EnumerableSetAccessControlViewableUint256} from "./utils/EnumerableSetAccessControlViewableUint256.sol";
 
 contract Entity is
     IEntity,
-    HasRegionSettings,
+    Authorizer,
+    ModifierOnlySpawner,
+    ModifierBlacklisted,
     ERC721Enumerable,
     ERC721Burnable
 {
     using Counters for Counters.Counter;
 
-    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    Spawner internal immutable S;
+    Executor internal immutable X;
 
-    bytes32 public constant AC_MOVE_KEY = keccak256("AC_MOVE");
+    Counters.Counter internal _tokenIdTracker;
 
-    Counters.Counter private _tokenIdTracker;
+    EnumerableSetAccessControlViewableUint256 public immutable spawnSet;
 
-    struct EntityInfo {
-        bytes32 seed; //Random seed used to determine nft stats on 3rd contracts
-        bytes32 eType; //Used for nfts with different types, for instance beta/free/paid
-    }
+    event SetSpawnSet(EnumerableSetAccessControlViewableUint256 set);
 
     mapping(uint256 id => EntityInfo info) public entityInfo;
 
     constructor(
         string memory name,
         string memory symbol,
-        RegionSettings _regionSettings
-    ) ERC721(name, symbol) HasRegionSettings(_regionSettings) {
+        Executor _executor,
+        Spawner _spawner
+    ) ERC721(name, symbol) {
+        X = _executor;
+        S = _spawner;
+        spawnSet = new EnumerableSetAccessControlViewableUint256(this);
+        emit SetSpawnSet(spawnSet);
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
+        _grantRole(MANAGER_ROLE, _msgSender());
     }
 
-    function _mint(
-        address _to,
-        bytes32 _eType,
-        bytes32 _randWord
-    ) internal virtual returns (uint256 id_) {
-        require(
-            hasRole(MINTER_ROLE, _msgSender()),
-            "JNT: must have manager role to mint"
-        );
-
-        // We cannot just use balanceOf to create the new tokenId because tokens
-        // can be burned (destroyed), so we need a separate counter.
-        uint256 newTokenId = _tokenIdTracker.current();
-        ERC721._mint(address(this), newTokenId);
-
-        EntityInfo storage info = entityInfo[newTokenId];
-
-        info.seed = _randWord;
-        info.eType = _eType;
-
-        _transfer(address(this), _to, newTokenId);
-
+    function _mint(address _to) internal virtual returns (uint256 id_) {
+        ERC721._mint(_to, _tokenIdTracker.current());
         _tokenIdTracker.increment();
-
         return newTokenId;
     }
 
     function burn(
         uint256 _nftId
-    ) public virtual override(IEntity, ERC721Burnable) {
+    ) public virtual override(IEntity, ERC721Burnable) blacklisted {
         ERC721Burnable.burn(_nftId);
-    }
-
-    function seed(uint256 _nftId) external view returns (bytes32 _seed) {
-        _seed = entityInfo[_nftId].seed;
-    }
-
-    function eType(uint256 _nftId) external view returns (bytes32 _eType) {
-        _eType = entityInfo[_nftId].eType;
     }
 
     function supportsInterface(
@@ -108,7 +88,23 @@ contract Entity is
         address to,
         uint256 tokenId,
         address auth
-    ) internal override(ERC721, ERC721Enumerable) returns (address) {
+    )
+        internal
+        override(ERC721, ERC721Enumerable)
+        blacklisted(X, msg.sender)
+        returns (address)
+    {
         return ERC721Enumerable._update(to, tokenId, auth);
+    }
+
+    function mint(
+        address _receiver
+    )
+        external
+        onlySpawner(S)
+        blacklisted(X, _receiver)
+        returns (uint256 nftId)
+    {
+        return _mint(_receiver);
     }
 }
