@@ -2,10 +2,9 @@
 // Authored by Plastic Digits
 pragma solidity >=0.8.23;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {IAuthorizer} from "../interfaces/IAuthorizer.sol";
-import {Authorized} from "../Authorized.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract EnumerableSetAccessControlViewableBytes32 is Authorized {
+contract EACSetBytes32 is Ownable {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     EnumerableSet.Bytes32Set set;
@@ -15,9 +14,9 @@ contract EnumerableSetAccessControlViewableBytes32 is Authorized {
 
     error NotInSet(bytes32 data);
 
-    constructor(IAuthorizer _authorizer) Authorized(_authorizer) {}
+    constructor() Ownable(msg.sender) {}
 
-    function addMultiple(bytes32[] calldata _datas) external onlyManager {
+    function addMultiple(bytes32[] calldata _datas) external onlyOwner {
         for (uint i; i < _datas.length; i++) {
             bytes32 data = _datas[i];
             if (!set.contains(data)) {
@@ -27,7 +26,7 @@ contract EnumerableSetAccessControlViewableBytes32 is Authorized {
         }
     }
 
-    function removeMultiple(bytes32[] calldata _datas) external onlyManager {
+    function removeMultiple(bytes32[] calldata _datas) external onlyOwner {
         for (uint i; i < _datas.length; i++) {
             bytes32 data = _datas[i];
             if (set.contains(data)) {
@@ -37,14 +36,14 @@ contract EnumerableSetAccessControlViewableBytes32 is Authorized {
         }
     }
 
-    function add(bytes32 _data) external onlyManager {
+    function add(bytes32 _data) external onlyOwner {
         if (!set.contains(_data)) {
             set.add(_data);
             emit Add(_data);
         }
     }
 
-    function remove(bytes32 _data) external onlyManager {
+    function remove(bytes32 _data) external onlyOwner {
         if (set.contains(_data)) {
             set.remove(_data);
             emit Remove(_data);

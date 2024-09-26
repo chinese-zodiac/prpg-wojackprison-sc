@@ -11,14 +11,13 @@ import {Counters} from "./libs/Counters.sol";
 import {IEntity} from "./interfaces/IEntity.sol";
 import {ModifierBlacklisted} from "./utils/ModifierBlacklisted.sol";
 import {ModifierOnlySpawner} from "./utils/ModifierOnlySpawner.sol";
-import {Spawner} from "./Spawner.sol";
-import {Executor} from "./Executor.sol";
-import {Authorizer} from "./Authorizer.sol";
-import {EnumerableSetAccessControlViewableUint256} from "./utils/EnumerableSetAccessControlViewableUint256.sol";
+import {ISpawner} from "./interfaces/ISpawner.sol";
+import {IExecutor} from "./interfaces/IExecutor.sol";
+import {EACSetUint256} from "./utils/EACSetUint256.sol";
 
 contract Entity is
     IEntity,
-    Authorizer,
+    AccessControlEnumerable,
     ModifierOnlySpawner,
     ModifierBlacklisted,
     ERC721Enumerable,
@@ -26,40 +25,37 @@ contract Entity is
 {
     using Counters for Counters.Counter;
 
-    Spawner internal immutable S;
-    Executor internal immutable X;
+    ISpawner internal immutable S;
+    IExecutor internal immutable X;
 
     Counters.Counter internal _tokenIdTracker;
 
-    EnumerableSetAccessControlViewableUint256 public immutable spawnSet;
+    EACSetUint256 public immutable spawnSet;
 
-    event SetSpawnSet(EnumerableSetAccessControlViewableUint256 set);
-
-    mapping(uint256 id => EntityInfo info) public entityInfo;
+    event SetSpawnSet(EACSetUint256 set);
 
     constructor(
         string memory name,
         string memory symbol,
-        Executor _executor,
-        Spawner _spawner
+        IExecutor _executor,
+        ISpawner _spawner
     ) ERC721(name, symbol) {
         X = _executor;
         S = _spawner;
-        spawnSet = new EnumerableSetAccessControlViewableUint256(this);
+        spawnSet = new EACSetUint256();
         emit SetSpawnSet(spawnSet);
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
-        _grantRole(MANAGER_ROLE, _msgSender());
     }
 
     function _mint(address _to) internal virtual returns (uint256 id_) {
-        ERC721._mint(_to, _tokenIdTracker.current());
+        id_ = _tokenIdTracker.current();
+        ERC721._mint(_to, id_);
         _tokenIdTracker.increment();
-        return newTokenId;
     }
 
     function burn(
         uint256 _nftId
-    ) public virtual override(IEntity, ERC721Burnable) blacklisted {
+    ) public virtual override(IEntity, ERC721Burnable) {
         ERC721Burnable.burn(_nftId);
     }
 
@@ -92,6 +88,7 @@ contract Entity is
         internal
         override(ERC721, ERC721Enumerable)
         blacklisted(X, msg.sender)
+        blacklistedEntity(X, this, tokenId)
         returns (address)
     {
         return ERC721Enumerable._update(to, tokenId, auth);

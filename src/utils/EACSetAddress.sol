@@ -2,10 +2,9 @@
 // Authored by Plastic Digits
 pragma solidity >=0.8.23;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {IAuthorizer} from "../interfaces/IAuthorizer.sol";
-import {Authorized} from "../Authorized.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract EnumerableSetAccessControlViewableAddress is Authorized {
+contract EACSetAddress is Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     EnumerableSet.AddressSet set;
@@ -15,9 +14,9 @@ contract EnumerableSetAccessControlViewableAddress is Authorized {
 
     error NotInSet(address account);
 
-    constructor(IAuthorizer _authorizer) Authorized(_authorizer) {}
+    constructor() Ownable(msg.sender) {}
 
-    function addMultiple(address[] calldata _accounts) external onlyManager {
+    function addMultiple(address[] calldata _accounts) external onlyOwner {
         for (uint i; i < _accounts.length; i++) {
             address account = _accounts[i];
             if (!set.contains(account)) {
@@ -27,7 +26,7 @@ contract EnumerableSetAccessControlViewableAddress is Authorized {
         }
     }
 
-    function removeMultiple(address[] calldata _accounts) external onlyManager {
+    function removeMultiple(address[] calldata _accounts) external onlyOwner {
         for (uint i; i < _accounts.length; i++) {
             address account = _accounts[i];
             if (set.contains(account)) {
@@ -37,14 +36,14 @@ contract EnumerableSetAccessControlViewableAddress is Authorized {
         }
     }
 
-    function add(address _account) external onlyManager {
+    function add(address _account) external onlyOwner {
         if (!set.contains(_account)) {
             set.add(_account);
             emit Add(_account);
         }
     }
 
-    function remove(address _account) external onlyManager {
+    function remove(address _account) external onlyOwner {
         if (set.contains(_account)) {
             set.remove(_account);
             emit Remove(_account);

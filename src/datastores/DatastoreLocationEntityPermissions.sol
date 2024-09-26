@@ -4,20 +4,21 @@ import {IEntity} from "../interfaces/IEntity.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Authorizer} from "../Authorizer.sol";
+import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import {Executor} from "../Executor.sol";
 import {DatastoreEntityLocation} from "./DatastoreEntityLocation.sol";
-import {EnumerableSetAccessControlViewableUint256} from "../utils/EnumerableSetAccessControlViewableUint256.sol";
-import {EnumerableSetAccessControlViewableAddress} from "../utils/EnumerableSetAccessControlViewableAddress.sol";
-import {EnumerableSetAccessControlViewableBytes32} from "../utils/EnumerableSetAccessControlViewableBytes32.sol";
+import {EACSetUint256} from "../utils/EACSetUint256.sol";
+import {EACSetAddress} from "../utils/EACSetAddress.sol";
+import {EACSetBytes32} from "../utils/EACSetBytes32.sol";
 import {IKey} from "../interfaces/IKey.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {AdminCharacter} from "../AdminCharacter.sol";
 import {ModifierOnlyExecutor} from "../utils/ModifierOnlyExecutor.sol";
+import {ModifierOnlySpawner} from "../utils/ModifierOnlySpawner.sol";
 import {ModifierBlacklisted} from "../utils/ModifierBlacklisted.sol";
-import {Executor} from "../Executor.sol";
-
+import {IExecutor} from "../interfaces/IExecutor.sol";
+import {ISpawner} from "../interfaces/ISpawner.sol";
 //Stores a Lock for an Action.
 //Action calls Lock to set an Unlock Action key,
 //Then when the Action that has the unlock action key  is called, it must call unlock.
@@ -25,7 +26,8 @@ contract DatastoreLocationEntityPermissions is
     ReentrancyGuard,
     ModifierBlacklisted,
     ModifierOnlyExecutor,
-    Authorizer,
+    ModifierOnlySpawner,
+    AccessControlEnumerable,
     IKey
 {
     bytes32 public constant KEY =
@@ -34,18 +36,18 @@ contract DatastoreLocationEntityPermissions is
         keccak256("DATASTORE_ENTITY_LOCATION");
     bytes32 internal constant PERMISSION_DEFAULT_ADMIN_ENTITY = bytes32(0x0);
 
-    Executor internal immutable X;
-    IEntity internal immutable ADMIN_CHARACTER;
+    IExecutor internal immutable X;
+    ISpawner internal immutable S;
 
     error OnlyAdminCharacter(address sender);
 
     using SafeERC20 for IERC20;
 
-    mapping(uint256 locID => mapping(bytes32 permissionKey => EnumerableSetAccessControlViewableAddress entities))
+    mapping(uint256 locID => mapping(bytes32 permissionKey => EACSetAddress entities))
         public locationPermissionedEntitiesSet;
-    mapping(uint256 locID => mapping(bytes32 permissionKey => mapping(IEntity => EnumerableSetAccessControlViewableUint256 entityIds)))
+    mapping(uint256 locID => mapping(bytes32 permissionKey => mapping(IEntity => EACSetUint256 entityIds)))
         public locationPermissionedEntityIdsSet;
-    mapping(uint256 locID => EnumerableSetAccessControlViewableBytes32 permissionKeys)
+    mapping(uint256 locID => EACSetBytes32 permissionKeys)
         public locationPermissionKeys;
 
     mapping(uint256 locID => mapping(bytes32 permissionKey => bytes32 permissionManagerKey))
@@ -54,17 +56,14 @@ contract DatastoreLocationEntityPermissions is
     event AddPermissionedEntitySet(
         uint256 locID,
         bytes32 permissionKey,
-        EnumerableSetAccessControlViewableAddress entitySet
+        EACSetAddress entitySet
     );
-    event AddPermissionedKeysSet(
-        uint256 locID,
-        EnumerableSetAccessControlViewableBytes32 keySet
-    );
+    event AddPermissionedKeysSet(uint256 locID, EACSetBytes32 keySet);
     event AddPermissionedEntityIdSet(
         uint256 locID,
         IEntity entity,
         bytes32 permissionKey,
-        EnumerableSetAccessControlViewableUint256 entityIdSet
+        EACSetUint256 entityIdSet
     );
     event SetPermissionKeyPermissionManagerKey(
         uint256 locID,
@@ -78,11 +77,10 @@ contract DatastoreLocationEntityPermissions is
         uint256 _entityId
     );
 
-    constructor(Executor _executor, AdminCharacter _admin) {
+    constructor(IExecutor _executor, ISpawner _spawner) {
         X = _executor;
-        ADMIN_CHARACTER = _admin;
-        _grantRole(DEFAULT_ADMIN_ROLE, _rs.governance());
-        _grantRole(MANAGER_ROLE, address(this));
+        S = _spawner;
+        _grantRole(DEFAULT_ADMIN_ROLE, X.globalSettings().governance());
 
         //TODO: Spawn admin 0
         //Admin entity 0 administrates location 0
@@ -91,24 +89,23 @@ contract DatastoreLocationEntityPermissions is
     }
 
     //Special logic for admins to bootstrap permissioning
-    function grantAdminCharPermissions(uint256 adminID) public {
-        if (msg.sender != address(ADMIN_CHARACTER)) {
-            revert OnlyAdminCharacter(msg.sender);
-        }
+    function grantAdminCharPermissions(
+        IEntity _entity,
+        uint256 _entityID
+    ) public onlySpawner(S) {
         //adminID and locationID are the same
-        uint256 locID = adminID;
+        uint256 locID = _entityID;
         updateLocationPermissionKeySets(
             locID,
             PERMISSION_DEFAULT_ADMIN_ENTITY,
-            ADMIN_CHARACTER
+            _entity
         );
-        locationPermissionKeys[_location].add(_permissionKey);
-        locationPermissionedEntitiesSet[locID][_permissionKey].add(
-            address(ADMIN_CHARACTER)
-        );
-        locationPermissionedEntityIdsSet[locID][_permissionKey][_entity].add(
-            adminID
-        );
+        locationPermissionKeys[locID].add(PERMISSION_DEFAULT_ADMIN_ENTITY);
+        locationPermissionedEntitiesSet[locID][PERMISSION_DEFAULT_ADMIN_ENTITY]
+            .add(address(_entity));
+        locationPermissionedEntityIdsSet[locID][
+            PERMISSION_DEFAULT_ADMIN_ENTITY
+        ][_entity].add(_entityID);
     }
 
     function revertIfEntityAllLacksPermission(
@@ -116,27 +113,20 @@ contract DatastoreLocationEntityPermissions is
         bytes32 _permissionKey,
         IEntity _entity
     ) public view {
-        EnumerableSetAccessControlViewableBytes32 lpkSet = locationPermissionKeys[
-                _location
-            ];
-        EnumerableSetAccessControlViewableAddress lpeSet = locationPermissionedEntitiesSet[
-                _location
-            ][_permissionKey];
-        EnumerableSetAccessControlViewableUint256 lpeiSet = locationPermissionedEntityIdsSet[
-                _location
-            ][_permissionKey][_entity];
+        EACSetBytes32 lpkSet = locationPermissionKeys[_locID];
+        EACSetAddress lpeSet = locationPermissionedEntitiesSet[_locID][
+            _permissionKey
+        ];
+        EACSetUint256 lpeiSet = locationPermissionedEntityIdsSet[_locID][
+            _permissionKey
+        ][_entity];
         if (
             address(lpkSet) == address(0x0) ||
             !lpkSet.getContains(_permissionKey) ||
             !lpeSet.getContains(address(_entity)) ||
             lpeiSet.getLength() > 0
         ) {
-            revert EntityLacksPermission(
-                _location,
-                _permissionKey,
-                _entity,
-                _entityId
-            );
+            revert EntityLacksPermission(_locID, _permissionKey, _entity, 0);
         }
     }
 
@@ -146,15 +136,13 @@ contract DatastoreLocationEntityPermissions is
         IEntity _entity,
         uint256 _entityId
     ) public view {
-        EnumerableSetAccessControlViewableBytes32 lpkSet = locationPermissionKeys[
-                _location
-            ];
-        EnumerableSetAccessControlViewableAddress lpeSet = locationPermissionedEntitiesSet[
-                _location
-            ][_permissionKey];
-        EnumerableSetAccessControlViewableUint256 lpeiSet = locationPermissionedEntityIdsSet[
-                _location
-            ][_permissionKey][_entity];
+        EACSetBytes32 lpkSet = locationPermissionKeys[_locID];
+        EACSetAddress lpeSet = locationPermissionedEntitiesSet[_locID][
+            _permissionKey
+        ];
+        EACSetUint256 lpeiSet = locationPermissionedEntityIdsSet[_locID][
+            _permissionKey
+        ][_entity];
         if (
             address(lpkSet) == address(0x0) ||
             !lpkSet.getContains(_permissionKey) ||
@@ -162,7 +150,7 @@ contract DatastoreLocationEntityPermissions is
             (lpeiSet.getLength() > 0 && !lpeiSet.getContains(_entityId))
         ) {
             revert EntityLacksPermission(
-                _location,
+                _locID,
                 _permissionKey,
                 _entity,
                 _entityId
@@ -235,12 +223,10 @@ contract DatastoreLocationEntityPermissions is
             _managerEntityId
         );
         updateLocationPermissionKeySets(_location, _permissionKey, _entity);
-        EnumerableSetAccessControlViewableBytes32 lpkSet = locationPermissionKeys[
-                _location
-            ];
-        EnumerableSetAccessControlViewableAddress lpeSet = locationPermissionedEntitiesSet[
-                _location
-            ][_permissionKey];
+        EACSetBytes32 lpkSet = locationPermissionKeys[_location];
+        EACSetAddress lpeSet = locationPermissionedEntitiesSet[_location][
+            _permissionKey
+        ];
         if (!lpkSet.getContains(_permissionKey)) {
             lpkSet.add(_permissionKey);
         }
@@ -263,10 +249,16 @@ contract DatastoreLocationEntityPermissions is
             _managerEntity,
             _managerEntityId
         );
-        grantPermissionToEntity(_permissionKey, _entity);
-        EnumerableSetAccessControlViewableUint256 lpeiSet = locationPermissionedEntityIdsSet[
-                _location
-            ][_permissionKey][_entity];
+        grantPermissionToEntity(
+            _location,
+            _managerEntity,
+            _managerEntityId,
+            _permissionKey,
+            _entity
+        );
+        EACSetUint256 lpeiSet = locationPermissionedEntityIdsSet[_location][
+            _permissionKey
+        ][_entity];
         for (uint256 i; i < _entityIds.length; i++) {
             if (!lpeiSet.getContains(_entityIds[i])) lpeiSet.add(_entityIds[i]);
         }
@@ -304,9 +296,9 @@ contract DatastoreLocationEntityPermissions is
             _managerEntity,
             _managerEntityId
         );
-        EnumerableSetAccessControlViewableUint256 lpeiSet = locationPermissionedEntityIdsSet[
-                _location
-            ][_permissionKey][_entity];
+        EACSetUint256 lpeiSet = locationPermissionedEntityIdsSet[_location][
+            _permissionKey
+        ][_entity];
         for (uint256 i; i < _entityIds.length; i++) {
             if (lpeiSet.getContains(_entityIds[i]))
                 lpeiSet.remove(_entityIds[i]);
@@ -318,19 +310,15 @@ contract DatastoreLocationEntityPermissions is
         bytes32 _permissionKey,
         IEntity _entity
     ) public {
-        EnumerableSetAccessControlViewableBytes32 lpkSet = locationPermissionKeys[
-                _location
-            ];
-        EnumerableSetAccessControlViewableAddress lpeSet = locationPermissionedEntitiesSet[
-                _location
-            ][_permissionKey];
-        EnumerableSetAccessControlViewableUint256 lpeiSet = locationPermissionedEntityIdsSet[
-                _location
-            ][_permissionKey][_entity];
+        EACSetBytes32 lpkSet = locationPermissionKeys[_location];
+        EACSetAddress lpeSet = locationPermissionedEntitiesSet[_location][
+            _permissionKey
+        ];
+        EACSetUint256 lpeiSet = locationPermissionedEntityIdsSet[_location][
+            _permissionKey
+        ][_entity];
         if (address(lpkSet) == address(0x0)) {
-            locationPermissionKeys[
-                _location
-            ] = new EnumerableSetAccessControlViewableBytes32(this);
+            locationPermissionKeys[_location] = new EACSetBytes32();
             emit AddPermissionedKeysSet(
                 _location,
                 locationPermissionKeys[_location]
@@ -339,7 +327,7 @@ contract DatastoreLocationEntityPermissions is
         if (address(lpeSet) == address(0x0)) {
             locationPermissionedEntitiesSet[_location][
                 _permissionKey
-            ] = new EnumerableSetAccessControlViewableAddress(this);
+            ] = new EACSetAddress();
             emit AddPermissionedEntitySet(
                 _location,
                 _permissionKey,
@@ -349,7 +337,7 @@ contract DatastoreLocationEntityPermissions is
         if (address(lpeiSet) == address(0x0)) {
             locationPermissionedEntityIdsSet[_location][_permissionKey][
                 _entity
-            ] = new EnumerableSetAccessControlViewableUint256(this);
+            ] = new EACSetUint256();
             emit AddPermissionedEntityIdSet(
                 _location,
                 _entity,

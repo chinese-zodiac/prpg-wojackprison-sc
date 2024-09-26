@@ -2,12 +2,11 @@
 // Authored by Plastic Digits
 pragma solidity ^0.8.23;
 
-import "./ILocation.sol";
 import "./IEntity.sol";
 
 interface IBooster {
     function getBoost(
-        ILocation location,
+        uint256 locId,
         IEntity entity,
         uint256 entityId
     ) external view returns (uint256 boost);

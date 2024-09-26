@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
-/*pragma solidity ^0.8.23;
-
+pragma solidity ^0.8.23;
+/*
 import {IEntity} from "../interfaces/IEntity.sol";
 import {EntityStoreERC20} from "../EntityStoreERC20.sol";
 import {LocPlayerWithStats} from "./LocPlayerWithStats.sol";

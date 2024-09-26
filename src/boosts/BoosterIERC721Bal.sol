@@ -5,7 +5,6 @@ pragma solidity ^0.8.23;
 import {IBooster} from "../interfaces/IBooster.sol";
 import {DatastoreEntityERC721} from "../datastores/DatastoreEntityERC721.sol";
 import {IEntity} from "../interfaces/IEntity.sol";
-import {ILocation} from "../interfaces/ILocation.sol";
 import {IERC721} from "@openzeppelin/contracts/interfaces/IERC721.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -26,7 +25,7 @@ contract BoosterIERC721Bal is IBooster {
     }
 
     function getBoost(
-        ILocation,
+        uint256,
         IEntity entity,
         uint256 entityId
     ) external view returns (uint256 boost) {

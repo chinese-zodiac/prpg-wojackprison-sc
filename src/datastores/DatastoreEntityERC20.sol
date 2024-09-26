@@ -5,21 +5,24 @@ import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {DatastoreEntityLocation} from "./DatastoreEntityLocation.sol";
-import {Authorizer} from "../Authorizer.sol";
-import {RegionSettings} from "../RegionSettings.sol";
-import {HasRSBlacklist} from "../utils/HasRSBlacklist.sol";
-import {EnumerableSetAccessControlViewableAddress} from "../utils/EnumerableSetAccessControlViewableAddress.sol";
+import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+import {ModifierOnlyExecutor} from "../utils/ModifierOnlyExecutor.sol";
+import {ModifierBlacklisted} from "../utils/ModifierBlacklisted.sol";
+import {AccessRoleAdmin} from "../roles/AccessRoleAdmin.sol";
+import {EACSetAddress} from "../utils/EACSetAddress.sol";
 import {IKey} from "../interfaces/IKey.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Executor} from "../Executor.sol";
 
 //Permisionless EntityERC20Datastore.
 //Deposit/withdraw/transfer tokens that are stored to a particular entity
 //deposit/withdraw/transfers are restricted to the entity's current location.
 contract DatastoreEntityERC20 is
     ReentrancyGuard,
-    HasRSBlacklist,
-    Authorizer,
+    ModifierOnlyExecutor,
+    ModifierBlacklisted,
+    AccessRoleAdmin,
     IKey
 {
     bytes32 public constant KEY = keccak256("DATASTORE_ENTITY_ERC20");
@@ -27,10 +30,12 @@ contract DatastoreEntityERC20 is
         keccak256("DATASTORE_ENTITY_LOCATION");
     using SafeERC20 for IERC20;
 
+    Executor internal immutable X;
+
     mapping(IERC721 entity => mapping(uint256 entityId => mapping(IERC20 token => uint256 shares)))
         public entityStoredERC20Shares;
 
-    mapping(IERC721 entity => mapping(uint256 entityId => EnumerableSetAccessControlViewableAddress tokens))
+    mapping(IERC721 entity => mapping(uint256 entityId => EACSetAddress tokens))
         public entityStoredTokens;
 
     //Neccessary for rebasing, tax, liquid staking, or other tokens
@@ -66,16 +71,9 @@ contract DatastoreEntityERC20 is
         uint256 tokenWad
     );
 
-    modifier onlyEntityLocation(IEntity _entity, uint256 _entityId) {
-        DatastoreEntityLocation(
-            regionSettings.registries(DATASTORE_ENTITY_LOCATION)
-        ).revertIfNotAccountIsEntityLocation(msg.sender, _entity, _entityId);
-        _;
-    }
-
-    constructor(RegionSettings _rs) HasRSBlacklist(_rs) {
-        _grantRole(DEFAULT_ADMIN_ROLE, _rs.governance());
-        _grantRole(MANAGER_ROLE, address(this));
+    constructor(Executor _executor) {
+        X = _executor;
+        _grantRole(DEFAULT_ADMIN_ROLE, X.globalSettings().governance());
     }
 
     function deposit(
@@ -86,8 +84,8 @@ contract DatastoreEntityERC20 is
     )
         external
         nonReentrant
-        onlyEntityLocation(_entity, _entityId)
-        blacklistedEntity(_entity, _entityId)
+        onlyExecutor(X)
+        blacklistedEntity(X, _entity, _entityId)
     {
         if (_wad == 0) return;
         uint256 expectedShares = convertTokensToShares(_token, _wad);
@@ -110,8 +108,8 @@ contract DatastoreEntityERC20 is
     )
         external
         nonReentrant
-        onlyEntityLocation(_entity, _entityId)
-        blacklistedEntity(_entity, _entityId)
+        onlyExecutor(X)
+        blacklistedEntity(X, _entity, _entityId)
     {
         if (_wad == 0) return;
         uint256 shares = convertTokensToShares(_token, _wad);
@@ -131,12 +129,20 @@ contract DatastoreEntityERC20 is
     )
         external
         nonReentrant
-        onlyEntityLocation(_fromEntity, _fromEntityId)
-        onlyEntityLocation(_toEntity, _toEntityId)
-        blacklistedEntity(_fromEntity, _fromEntityId)
-        blacklistedEntity(_toEntity, _toEntityId)
+        onlyExecutor(X)
+        blacklistedEntity(X, _fromEntity, _fromEntityId)
+        blacklistedEntity(X, _toEntity, _toEntityId)
     {
         if (_wad == 0) return;
+
+        DatastoreEntityLocation dsELoc = DatastoreEntityLocation(
+            X.globalSettings().registries(DATASTORE_ENTITY_LOCATION)
+        );
+        dsELoc.revertIfEntityNotAtLocation(
+            _toEntity,
+            _toEntityId,
+            dsELoc.entityLocation(_fromEntity, _fromEntityId)
+        );
         uint256 shares = convertTokensToShares(_token, _wad);
         entityStoredERC20Shares[_fromEntity][_fromEntityId][_token] -= shares;
         entityStoredERC20Shares[_toEntity][_toEntityId][_token] += shares;
@@ -159,8 +165,8 @@ contract DatastoreEntityERC20 is
     )
         external
         nonReentrant
-        onlyEntityLocation(_entity, _entityId)
-        blacklistedEntity(_entity, _entityId)
+        onlyExecutor(X)
+        blacklistedEntity(X, _entity, _entityId)
     {
         if (_wad == 0) return;
         uint256 shares = convertTokensToShares(_token, _wad);
@@ -210,9 +216,7 @@ contract DatastoreEntityERC20 is
         IERC20 _token
     ) public {
         if (address(entityStoredTokens[_entity][_entityId]) == address(0x0)) {
-            entityStoredTokens[_entity][
-                _entityId
-            ] = new EnumerableSetAccessControlViewableAddress(this);
+            entityStoredTokens[_entity][_entityId] = new EACSetAddress();
         }
         if (
             !entityStoredTokens[_entity][_entityId].getContains(address(_token))

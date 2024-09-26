@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
 pragma solidity ^0.8.23;
-import {EnumerableSetAccessControlViewableAddress} from "../utils/EnumerableSetAccessControlViewableAddress.sol";
-import {Authorizer} from "../Authorizer.sol";
-import {Authorizer} from "../Authorizer.sol";
-import {RegionSettings} from "../RegionSettings.sol";
-import {HasRSBlacklist} from "../utils/HasRSBlacklist.sol";
+import {EACSetAddress} from "../utils/EACSetAddress.sol";
+import {IExecutor} from "../interfaces/IExecutor.sol";
+import {AccessRoleAdmin} from "../roles/AccessRoleAdmin.sol";
+import {ModifierBlacklisted} from "../utils/ModifierBlacklisted.sol";
 import {IRegistryRegistrar} from "../interfaces/IRegistryRegistrar.sol";
 import {IKey} from "../interfaces/IKey.sol";
+import {ModifierBlacklisted} from "../utils/ModifierBlacklisted.sol";
+import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 
 //Anyone can be a registrar and add/del entries.
-contract RegistryBase is Authorizer, HasRSBlacklist {
+contract RegistryBase is AccessControlEnumerable, ModifierBlacklisted {
     bytes32 public constant REGISTRY_REGISTRAR =
         keccak256("REGISTRY_REGISTRAR");
-    mapping(address registrar => EnumerableSetAccessControlViewableAddress set)
-        public registrarEntrySet;
+    IExecutor internal immutable X;
+    mapping(address registrar => EACSetAddress set) public registrarEntrySet;
     mapping(bytes32 key => IKey entry) public entries;
 
     error KeyAlreadyRegistered(bytes32 key);
@@ -23,20 +24,21 @@ contract RegistryBase is Authorizer, HasRSBlacklist {
     error EntryLacksKey(IKey entry);
     error EntryKeyAlreadyRegistered(IKey key);
 
-    constructor(RegionSettings _rs) HasRSBlacklist(_rs) {
-        _grantRole(MANAGER_ROLE, address(this));
+    constructor(IExecutor _executor) {
+        X = _executor;
+        _grantRole(DEFAULT_ADMIN_ROLE, X.globalSettings().governance());
     }
 
     modifier onlyRegistrar() {
-        IRegistryRegistrar(regionSettings.registries(REGISTRY_REGISTRAR))
+        IRegistryRegistrar(X.globalSettings().registries(REGISTRY_REGISTRAR))
             .revertIfNotRegistrar(msg.sender);
         _;
     }
 
-    function addEntry(IKey entry) external onlyRegistrar blacklisted {
-        EnumerableSetAccessControlViewableAddress set = registrarEntrySet[
-            msg.sender
-        ];
+    function addEntry(
+        IKey entry
+    ) external onlyRegistrar blacklisted(X, msg.sender) {
+        EACSetAddress set = registrarEntrySet[msg.sender];
         if (set.getContains(address(entry))) {
             revert AlreadyRegistered(entry);
         }
@@ -51,10 +53,10 @@ contract RegistryBase is Authorizer, HasRSBlacklist {
         entries[key] = entry;
     }
 
-    function removeEntry(IKey entry) external onlyRegistrar blacklisted {
-        EnumerableSetAccessControlViewableAddress set = registrarEntrySet[
-            msg.sender
-        ];
+    function removeEntry(
+        IKey entry
+    ) external onlyRegistrar blacklisted(X, msg.sender) {
+        EACSetAddress set = registrarEntrySet[msg.sender];
         if (set.getContains(address(entry))) {
             revert NotRegistered(entry);
         }

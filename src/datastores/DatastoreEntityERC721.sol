@@ -5,21 +5,24 @@ import {ERC721Burnable} from "@openzeppelin/contracts/token/ERC721/extensions/ER
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IEntity} from "../interfaces/IEntity.sol";
 import {DatastoreEntityLocation} from "./DatastoreEntityLocation.sol";
-import {EnumerableSetAccessControlViewableUint256} from "../utils/EnumerableSetAccessControlViewableUint256.sol";
-import {EnumerableSetAccessControlViewableAddress} from "../utils/EnumerableSetAccessControlViewableAddress.sol";
-import {Authorizer} from "../Authorizer.sol";
-import {RegionSettings} from "../RegionSettings.sol";
-import {HasRSBlacklist} from "../utils/HasRSBlacklist.sol";
+import {EACSetUint256} from "../utils/EACSetUint256.sol";
+import {EACSetAddress} from "../utils/EACSetAddress.sol";
+import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+import {ModifierOnlyExecutor} from "../utils/ModifierOnlyExecutor.sol";
+import {ModifierBlacklisted} from "../utils/ModifierBlacklisted.sol";
+import {AccessRoleAdmin} from "../roles/AccessRoleAdmin.sol";
 import {IKey} from "../interfaces/IKey.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Executor} from "../Executor.sol";
 
 //Permisionless EntityStoreERC721
 //Deposit/withdraw/transfer nfts that are stored to a particular entity
 //deposit/withdraw/transfers are restricted to the entity's current location.
 contract DatastoreEntityERC721 is
     ReentrancyGuard,
-    HasRSBlacklist,
-    Authorizer,
+    ModifierOnlyExecutor,
+    ModifierBlacklisted,
+    AccessRoleAdmin,
     IKey
 {
     bytes32 public constant KEY = keccak256("DATASTORE_ENTITY_ERC721");
@@ -27,10 +30,12 @@ contract DatastoreEntityERC721 is
         keccak256("DATASTORE_ENTITY_LOCATION");
     using EnumerableSet for EnumerableSet.UintSet;
 
-    mapping(IEntity entity => mapping(uint256 entityId => mapping(IERC721 nft => EnumerableSetAccessControlViewableUint256 nftIdSet)))
+    Executor internal immutable X;
+
+    mapping(IEntity entity => mapping(uint256 entityId => mapping(IERC721 nft => EACSetUint256 nftIdSet)))
         public entityStoredERC721Ids;
 
-    mapping(IERC721 entity => mapping(uint256 entityId => EnumerableSetAccessControlViewableAddress tokens))
+    mapping(IERC721 entity => mapping(uint256 entityId => EACSetAddress tokens))
         public entityStoredTokens;
 
     event Deposit(IEntity entity, uint256 entityId, IERC721 nft, uint256 nftId);
@@ -50,18 +55,11 @@ contract DatastoreEntityERC721 is
     );
     event Burn(IEntity entity, uint256 entityId, IERC721 nft, uint256 nftId);
 
-    modifier onlyEntityLocation(IEntity _entity, uint256 _entityId) {
-        DatastoreEntityLocation(
-            regionSettings.registries(DATASTORE_ENTITY_LOCATION)
-        ).revertIfNotAccountIsEntityLocation(msg.sender, _entity, _entityId);
-        _;
+    constructor(Executor _executor) {
+        X = _executor;
+        _grantRole(DEFAULT_ADMIN_ROLE, X.globalSettings().governance());
     }
 
-    constructor(RegionSettings _rs) HasRSBlacklist(_rs) {
-        _grantRole(DEFAULT_ADMIN_ROLE, _rs.governance());
-        //for calling entityStoredERC721Ids
-        _grantRole(MANAGER_ROLE, address(this));
-    }
     function deposit(
         IEntity _entity,
         uint256 _entityId,
@@ -70,8 +68,8 @@ contract DatastoreEntityERC721 is
     )
         external
         nonReentrant
-        onlyEntityLocation(_entity, _entityId)
-        blacklistedEntity(_entity, _entityId)
+        onlyExecutor(X)
+        blacklistedEntity(X, _entity, _entityId)
     {
         updateSets(_entity, _entityId, _nft);
         for (uint i; i < _nftIds.length; i++) {
@@ -90,8 +88,8 @@ contract DatastoreEntityERC721 is
     )
         external
         nonReentrant
-        onlyEntityLocation(_entity, _entityId)
-        blacklistedEntity(_entity, _entityId)
+        onlyExecutor(X)
+        blacklistedEntity(X, _entity, _entityId)
     {
         for (uint i; i < _nftIds.length; i++) {
             _nft.transferFrom(address(this), _receiver, _nftIds[i]);
@@ -111,11 +109,18 @@ contract DatastoreEntityERC721 is
     )
         external
         nonReentrant
-        onlyEntityLocation(_fromEntity, _fromEntityId)
-        onlyEntityLocation(_toEntity, _toEntityId)
-        blacklistedEntity(_fromEntity, _fromEntityId)
-        blacklistedEntity(_toEntity, _toEntityId)
+        onlyExecutor(X)
+        blacklistedEntity(X, _fromEntity, _fromEntityId)
+        blacklistedEntity(X, _toEntity, _toEntityId)
     {
+        DatastoreEntityLocation dsELoc = DatastoreEntityLocation(
+            X.globalSettings().registries(DATASTORE_ENTITY_LOCATION)
+        );
+        dsELoc.revertIfEntityNotAtLocation(
+            _toEntity,
+            _toEntityId,
+            dsELoc.entityLocation(_fromEntity, _fromEntityId)
+        );
         updateSets(_toEntity, _toEntityId, _nft);
         for (uint i; i < _nftIds.length; i++) {
             entityStoredERC721Ids[_fromEntity][_fromEntityId][_nft].remove(
@@ -142,8 +147,8 @@ contract DatastoreEntityERC721 is
     )
         external
         nonReentrant
-        onlyEntityLocation(_entity, _entityId)
-        blacklistedEntity(_entity, _entityId)
+        onlyExecutor(X)
+        blacklistedEntity(X, _entity, _entityId)
     {
         for (uint i; i < _nftIds.length; i++) {
             _nft.burn(_nftIds[i]);
@@ -164,12 +169,10 @@ contract DatastoreEntityERC721 is
         ) {
             entityStoredERC721Ids[_entity][_entityId][
                 _nft
-            ] = new EnumerableSetAccessControlViewableUint256(this);
+            ] = new EACSetUint256();
         }
         if (address(entityStoredTokens[_entity][_entityId]) == address(0x0)) {
-            entityStoredTokens[_entity][
-                _entityId
-            ] = new EnumerableSetAccessControlViewableAddress(this);
+            entityStoredTokens[_entity][_entityId] = new EACSetAddress();
         }
         if (
             !entityStoredTokens[_entity][_entityId].getContains(address(_nft))

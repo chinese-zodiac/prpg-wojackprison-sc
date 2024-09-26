@@ -1,32 +1,35 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.23;
 import {IEntity} from "../interfaces/IEntity.sol";
-import {ILocation} from "../interfaces/ILocation.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {DatastoreEntityLocation} from "./DatastoreEntityLocation.sol";
-import {Authorizer} from "../Authorizer.sol";
-import {RegionSettings} from "../RegionSettings.sol";
-import {HasRSBlacklist} from "../utils/HasRSBlacklist.sol";
-import {EnumerableSetAccessControlViewableAddress} from "../utils/EnumerableSetAccessControlViewableAddress.sol";
+import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+import {ModifierOnlyExecutor} from "../utils/ModifierOnlyExecutor.sol";
+import {ModifierBlacklisted} from "../utils/ModifierBlacklisted.sol";
+import {EACSetAddress} from "../utils/EACSetAddress.sol";
 import {IKey} from "../interfaces/IKey.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Executor} from "../Executor.sol";
 
 //Stores a Lock for an Action.
 //Action calls Lock to set an Unlock Action key,
 //Then when the Action that has the unlock action key  is called, it must call unlock.
 contract DatastoreEntityActionLock is
     ReentrancyGuard,
-    HasRSBlacklist,
-    Authorizer,
+    ModifierOnlyExecutor,
+    ModifierBlacklisted,
+    AccessControlEnumerable,
     IKey
 {
     bytes32 public constant KEY = keccak256("DATASTORE_ENTITY_ACTION_LOCK");
     bytes32 public constant DATASTORE_ENTITY_LOCATION =
         keccak256("DATASTORE_ENTITY_LOCATION");
     using SafeERC20 for IERC20;
+
+    Executor internal immutable X;
 
     mapping(IERC721 entity => mapping(uint256 entityId => bytes32 unlockActionKey))
         public entityActionLock;
@@ -50,16 +53,9 @@ contract DatastoreEntityActionLock is
         bytes32 attemptedUnlockActionKey
     );
 
-    modifier onlyEntityLocation(IEntity _entity, uint256 _entityId) {
-        DatastoreEntityLocation(
-            regionSettings.registries(DATASTORE_ENTITY_LOCATION)
-        ).revertIfNotAccountIsEntityLocation(msg.sender, _entity, _entityId);
-        _;
-    }
-
-    constructor(RegionSettings _rs) HasRSBlacklist(_rs) {
-        _grantRole(DEFAULT_ADMIN_ROLE, _rs.governance());
-        _grantRole(MANAGER_ROLE, address(this));
+    constructor(Executor _executor) {
+        X = _executor;
+        _grantRole(DEFAULT_ADMIN_ROLE, X.globalSettings().governance());
     }
 
     function isLocked(
@@ -79,8 +75,8 @@ contract DatastoreEntityActionLock is
     )
         external
         nonReentrant
-        onlyEntityLocation(_entity, _entityId)
-        blacklistedEntity(_entity, _entityId)
+        onlyExecutor(X)
+        blacklistedEntity(X, _entity, _entityId)
     {
         if (entityActionLock[_entity][_entityId] != bytes32(0x0)) {
             revert AlreadyLocked(
@@ -91,9 +87,9 @@ contract DatastoreEntityActionLock is
             );
         }
         //TODO: Check DatastoreLocationActions
-        if (!ILocation(msg.sender).actionSet().getContains(_unlockActionKey)) {
+        /*if (!ILocation(msg.sender).actionSet().getContains(_unlockActionKey)) {
             revert InvalidUnlockActionKey(_unlockActionKey);
-        }
+        }*/
         entityActionLock[_entity][_entityId] = _unlockActionKey;
         emit Lock(_entity, _entityId, _unlockActionKey);
     }
@@ -105,8 +101,8 @@ contract DatastoreEntityActionLock is
     )
         external
         nonReentrant
-        onlyEntityLocation(_entity, _entityId)
-        blacklistedEntity(_entity, _entityId)
+        onlyExecutor(X)
+        blacklistedEntity(X, _entity, _entityId)
     {
         if (entityActionLock[_entity][_entityId] != bytes32(0x0)) {
             revert NotLocked(_entity, _entityId, _unlockActionKey);

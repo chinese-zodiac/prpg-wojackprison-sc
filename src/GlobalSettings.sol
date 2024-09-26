@@ -1,22 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
 pragma solidity ^0.8.23;
-import {Authorizer} from "./Authorizer.sol";
-import {EnumerableSetAccessControlViewableBytes32} from "./utils/EnumerableSetAccessControlViewableBytes32.sol";
+import {EACSetBytes32} from "./utils/EACSetBytes32.sol";
 import {TenXBlacklistV2} from "./TenXBlacklist.sol";
 import {IKey} from "./interfaces/IKey.sol";
+import {AccessRoleAdmin} from "./roles/AccessRoleAdmin.sol";
+import {AccessRoleManager} from "./roles/AccessRoleManager.sol";
 
-contract GlobalSettings is Authorizer {
+contract GlobalSettings is AccessRoleAdmin, AccessRoleManager {
     address public governance;
     TenXBlacklistV2 public tenXBlacklist;
-    EnumerableSetAccessControlViewableBytes32 public registryKeySet;
+    EACSetBytes32 public registryKeySet;
     mapping(bytes32 registryKey => address registry) public registries;
 
     event SetGovernance(address governance);
     event SetTenXBlacklist(TenXBlacklistV2 tenXBlacklist);
-    event SetRegistryKeySet(
-        EnumerableSetAccessControlViewableBytes32 registryKeySet
-    );
+    event SetRegistryKeySet(EACSetBytes32 registryKeySet);
     event AddRegistry(bytes32 registryKey, address registry);
     event DeleteRegistry(bytes32 registryKey, address registry);
 
@@ -27,9 +26,8 @@ contract GlobalSettings is Authorizer {
     constructor(address _governance, TenXBlacklistV2 _tenXBlacklist) {
         governance = _governance;
         tenXBlacklist = _tenXBlacklist;
-        registryKeySet = new EnumerableSetAccessControlViewableBytes32(this);
+        registryKeySet = new EACSetBytes32();
         _grantRole(DEFAULT_ADMIN_ROLE, governance);
-        _grantRole(MANAGER_ROLE, address(this));
         emit SetGovernance(governance);
         emit SetTenXBlacklist(tenXBlacklist);
         emit SetRegistryKeySet(registryKeySet);
@@ -59,7 +57,7 @@ contract GlobalSettings is Authorizer {
 
     function setTenXBlacklist(
         TenXBlacklistV2 _tenXBlacklist
-    ) external onlyManager {
+    ) external onlyAdmin {
         tenXBlacklist = _tenXBlacklist;
         emit SetTenXBlacklist(tenXBlacklist);
     }

@@ -4,7 +4,6 @@ pragma solidity ^0.8.23;
 
 import {IBooster} from "../interfaces/IBooster.sol";
 import {IEntity} from "../interfaces/IEntity.sol";
-import {ILocation} from "../interfaces/ILocation.sol";
 
 contract BoosterConstant is IBooster {
     uint256 public immutable value;
@@ -14,9 +13,9 @@ contract BoosterConstant is IBooster {
     }
 
     function getBoost(
-        ILocation,
-        IEntity,
-        uint256
+        uint256 _locId,
+        IEntity _entity,
+        uint256 _entityId
     ) external view returns (uint256 boost) {
         return value;
     }

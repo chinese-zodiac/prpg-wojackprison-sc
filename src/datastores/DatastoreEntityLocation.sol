@@ -2,12 +2,13 @@
 pragma solidity ^0.8.23;
 
 import {IEntity} from "../interfaces/IEntity.sol";
-import {EnumerableSetAccessControlViewableUint256} from "../utils/EnumerableSetAccessControlViewableUint256.sol";
-import {Authorizer} from "../Authorizer.sol";
+import {EACSetUint256} from "../utils/EACSetUint256.sol";
 import {ModifierOnlyExecutor} from "../utils/ModifierOnlyExecutor.sol";
 import {ModifierOnlySpawner} from "../utils/ModifierOnlySpawner.sol";
 import {ModifierBlacklisted} from "../utils/ModifierBlacklisted.sol";
-import {Executor} from "../Executor.sol";
+import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+import {IExecutor} from "../interfaces/IExecutor.sol";
+import {ISpawner} from "../interfaces/ISpawner.sol";
 
 //Permissionless Datastore.
 //It allows ONLY the Entity's current Location to move an Entity to a new Location.
@@ -18,18 +19,18 @@ import {Executor} from "../Executor.sol";
 //you will need to spawn your own entities to buid a seperate gameworld.
 //Stores data related to movement between locations
 contract DatastoreEntityLocation is
+    AccessControlEnumerable,
     ModifierBlacklisted,
     ModifierOnlyExecutor,
-    ModifierOnlySpawner,
-    Authorizer
+    ModifierOnlySpawner
 {
     bytes32 public constant KEY = keccak256("DATASTORE_ENTITY_LOCATION");
 
-    Executor internal immutable X;
-    Spawner internal immutable S;
+    IExecutor internal immutable X;
+    ISpawner internal immutable S;
     IEntity public immutable ADMIN_CHARACTER;
 
-    mapping(uint256 locationID => mapping(IEntity entity => EnumerableSetAccessControlViewableUint256 entityIdSet))
+    mapping(uint256 locationID => mapping(IEntity entity => EACSetUint256 entityIdSet))
         public locationEntityIdSet;
     mapping(IEntity entity => mapping(uint256 entityID => uint256 locationID))
         public entityLocation;
@@ -50,12 +51,14 @@ contract DatastoreEntityLocation is
         uint256 locDestID
     );
 
-    constructor(Executor _executor, Spawner _spawner, IEntity _adminCharacter) {
+    constructor(
+        IExecutor _executor,
+        ISpawner _spawner,
+        IEntity _adminCharacter
+    ) {
         X = _executor;
         S = _spawner;
-        _grantRole(DEFAULT_ADMIN_ROLE, X.regionSettings().governance());
-        //For calling locationEntityIdSet
-        _grantRole(MANAGER_ROLE, address(this));
+        _grantRole(DEFAULT_ADMIN_ROLE, X.globalSettings().governance());
         ADMIN_CHARACTER = _adminCharacter;
     }
 
@@ -68,13 +71,23 @@ contract DatastoreEntityLocation is
         _;
     }
 
+    function revertIfEntityNotAtLocation(
+        IEntity _entity,
+        uint256 _entityId,
+        uint256 _locationId
+    ) external view {
+        if (entityLocation[_entity][_entityId] != _locationId) {
+            revert NotEntityLocation(_locationId, _entity, _entityId);
+        }
+    }
+
     //Spawns an entity at location, so it can move in the future.
     function spawn(
         IEntity _entity,
         uint256 _entityId,
         uint256 _locationId
-    ) external onlySpawner(S) blacklistedEntity(_entity, _entityId) {
-        if (entityIdLocation[_entity][_entityId] != 0) {
+    ) external onlySpawner(S) blacklistedEntity(X, _entity, _entityId) {
+        if (entityLocation[_entity][_entityId] != 0) {
             revert AlreadySpawned(_entity, _entityId);
         }
         if (_entity != ADMIN_CHARACTER) {
@@ -89,8 +102,9 @@ contract DatastoreEntityLocation is
         IEntity _entity,
         uint256 _entityId
     ) external onlyExecutor(X) blacklistedEntity(X, _entity, _entityId) {
-        _del(_entity, _entityId, _curr);
-        emit Move(_entity, _entityId, _curr, 0);
+        uint256 curr = entityLocation[_entity][_entityId];
+        _del(_entity, _entityId, curr);
+        emit Move(_entity, _entityId, curr, 0);
     }
 
     //Moves an entity to a new location.
@@ -99,7 +113,7 @@ contract DatastoreEntityLocation is
         uint256 _entityId,
         uint256 _dest
     ) external onlyExecutor(X) blacklistedEntity(X, _entity, _entityId) {
-        uint256 curr = entityIdLocation[_entity][_entityId];
+        uint256 curr = entityLocation[_entity][_entityId];
         _tfr(_entity, _entityId, curr, _dest);
         emit Move(_entity, _entityId, curr, _dest);
     }
@@ -110,17 +124,15 @@ contract DatastoreEntityLocation is
         uint256 _dest
     ) internal onlyEntityIdSetExists(_dest, _entity) {
         if (address(locationEntityIdSet[_dest][_entity]) == address(0x0)) {
-            locationEntityIdSet[_dest][
-                _entity
-            ] = new EnumerableSetAccessControlViewableUint256(this);
+            locationEntityIdSet[_dest][_entity] = new EACSetUint256();
         }
         locationEntityIdSet[_dest][_entity].add(_entityId);
-        entityIdLocation[_entity][_entityId] = _dest;
+        entityLocation[_entity][_entityId] = _dest;
     }
 
     function _del(IEntity _entity, uint256 _entityId, uint256 _curr) internal {
         locationEntityIdSet[_curr][_entity].remove(_entityId);
-        delete entityIdLocation[_entity][_entityId];
+        delete entityLocation[_entity][_entityId];
     }
 
     function _tfr(

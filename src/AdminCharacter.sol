@@ -2,24 +2,19 @@
 pragma solidity ^0.8.23;
 
 import {Entity} from "./Entity.sol";
-import {CheapRNG} from "./CheapRNG.sol";
-import {EnumerableSetAccessControlViewableAddress} from "./utils/EnumerableSetAccessControlViewableAddress.sol";
-import {EnumerableSetAccessControlViewableBytes32} from "./utils/EnumerableSetAccessControlViewableBytes32.sol";
-import {Authorizer} from "./Authorizer.sol";
-import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import {Counters} from "./libs/Counters.sol";
-import {DatastoreEntityLocation} from "./datastores/DatastoreEntityLocation.sol";
-import {Executor} from "./Executor.sol";
-import {ModifierOnlyExecutor} from "./utils/ModifierOnlyExecutor.sol";
+import {IExecutor} from "./interfaces/IExecutor.sol";
+import {ISpawner} from "./interfaces/ISpawner.sol";
 
-contract AdminCharacter is Entity, Authorizer {
+contract AdminCharacter is Entity {
     using Counters for Counters.Counter;
     bytes32 public constant DATASTORE_ENTITY_LOCATION =
         keccak256("DATASTORE_ENTITY_LOCATION");
 
     constructor(
-        Executor _executor
-    ) Entity("Administrator, PRPG", "ADMIN-PRPG", _executor) {}
+        IExecutor _executor,
+        ISpawner _spawner
+    ) Entity("Administrator, PRPG", "ADMIN-PRPG", _executor, _spawner) {}
 
     function tokenURI(uint256) public pure override returns (string memory) {
         return

@@ -2,19 +2,20 @@
 // Authored by Plastic Digits
 pragma solidity ^0.8.23;
 
-import {Executor} from "../Executor.sol";
+import {IExecutor} from "../interfaces/IExecutor.sol";
 import {IEntity} from "../interfaces/IEntity.sol";
 
 contract ModifierBlacklisted {
-    modifier blacklisted(Executor x, address account) {
+    modifier blacklisted(IExecutor x, address account) {
         x.revertIfAccountBlacklisted(account);
         _;
     }
     modifier blacklistedEntity(
-        Executor x,
+        IExecutor x,
         IEntity entity,
         uint256 entityID
     ) {
         x.revertIfEntityOwnerBlacklisted(entity, entityID);
+        _;
     }
 }

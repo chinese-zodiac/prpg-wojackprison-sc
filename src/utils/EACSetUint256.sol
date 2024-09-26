@@ -2,10 +2,9 @@
 // Authored by Plastic Digits
 pragma solidity >=0.8.23;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {IAuthorizer} from "../interfaces/IAuthorizer.sol";
-import {Authorized} from "../Authorized.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract EnumerableSetAccessControlViewableUint256 is Authorized {
+contract EACSetUint256 is Ownable {
     using EnumerableSet for EnumerableSet.UintSet;
 
     EnumerableSet.UintSet set;
@@ -15,9 +14,9 @@ contract EnumerableSetAccessControlViewableUint256 is Authorized {
 
     error NotInSet(uint256 number);
 
-    constructor(IAuthorizer _authorizer) Authorized(_authorizer) {}
+    constructor() Ownable(msg.sender) {}
 
-    function addMultiple(uint256[] calldata _numbers) external onlyManager {
+    function addMultiple(uint256[] calldata _numbers) external onlyOwner {
         for (uint i; i < _numbers.length; i++) {
             uint256 number = _numbers[i];
             if (!set.contains(number)) {
@@ -27,7 +26,7 @@ contract EnumerableSetAccessControlViewableUint256 is Authorized {
         }
     }
 
-    function removeMultiple(uint256[] calldata _numbers) external onlyManager {
+    function removeMultiple(uint256[] calldata _numbers) external onlyOwner {
         for (uint i; i < _numbers.length; i++) {
             uint256 number = _numbers[i];
             if (set.contains(number)) {
@@ -37,14 +36,14 @@ contract EnumerableSetAccessControlViewableUint256 is Authorized {
         }
     }
 
-    function add(uint256 _number) external onlyManager {
+    function add(uint256 _number) external onlyOwner {
         if (!set.contains(_number)) {
             set.add(_number);
             emit Add(_number);
         }
     }
 
-    function remove(uint256 _number) external onlyManager {
+    function remove(uint256 _number) external onlyOwner {
         if (set.contains(_number)) {
             set.remove(_number);
             emit Remove(_number);

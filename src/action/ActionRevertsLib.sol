@@ -2,7 +2,6 @@
 pragma solidity ^0.8.23;
 import {IAction} from "../interfaces/IAction.sol";
 import {IEntity} from "../interfaces/IEntity.sol";
-import {ILocation} from "../interfaces/ILocation.sol";
 import {DatastoreEntityLocation} from "../datastores/DatastoreEntityLocation.sol";
 import {DatastoreEntityActionLock} from "../datastores/DatastoreEntityActionLock.sol";
 import "./ActionErrors.sol" as ActionErrors;
@@ -19,12 +18,6 @@ library ActionRevertsLib {
                 _entity,
                 _entityID
             );
-        }
-    }
-
-    function revertIfSenderNotLocation(ILocation _location) internal view {
-        if (msg.sender != address(_location)) {
-            revert ActionErrors.SenderNotLocation(msg.sender, _location);
         }
     }
 
@@ -47,14 +40,14 @@ library ActionRevertsLib {
 
     function revertIfEntityNotAtLocation(
         DatastoreEntityLocation _datastoreEntityLocation,
-        ILocation _location,
+        uint256 _location,
         IEntity _entity,
         uint256 _entityID
     ) internal view {
-        _datastoreEntityLocation.revertIfNotAccountIsEntityLocation(
-            address(_location),
+        _datastoreEntityLocation.revertIfEntityNotAtLocation(
             _entity,
-            _entityID
+            _entityID,
+            _location
         );
     }
 }

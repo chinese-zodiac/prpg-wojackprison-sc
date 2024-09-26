@@ -1,17 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0
 // Authored by Plastic Digits
 pragma solidity ^0.8.23;
-import {Authorizer} from "../Authorizer.sol";
-import {HasRSBlacklist} from "../utils/HasRSBlacklist.sol";
-import {RegionSettings} from "../RegionSettings.sol";
+import {IExecutor} from "../interfaces/IExecutor.sol";
+import {AccessRoleAdmin} from "../roles/AccessRoleAdmin.sol";
+import {ModifierBlacklisted} from "../utils/ModifierBlacklisted.sol";
 import {IRegistryRegistrar} from "../interfaces/IRegistryRegistrar.sol";
-import {EnumerableSetAccessControlViewableAddress} from "../utils/EnumerableSetAccessControlViewableAddress.sol";
+import {EACSetAddress} from "../utils/EACSetAddress.sol";
+import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 
-contract RegistryRegistrar is Authorizer, HasRSBlacklist, IRegistryRegistrar {
+contract RegistryRegistrar is
+    AccessControlEnumerable,
+    AccessRoleAdmin,
+    ModifierBlacklisted,
+    IRegistryRegistrar
+{
     bytes32 public constant KEY = keccak256("REGISTRY_REGISTRAR");
+    IExecutor internal immutable X;
     mapping(address registrar => string ipfsCID)
         public registrarMetadataIpfsCID;
-    EnumerableSetAccessControlViewableAddress public registrarSet;
+    EACSetAddress public registrarSet;
 
     event BecomeRegistrar(address registrar);
 
@@ -23,8 +30,9 @@ contract RegistryRegistrar is Authorizer, HasRSBlacklist, IRegistryRegistrar {
         _;
     }
 
-    constructor(RegionSettings _rs) HasRSBlacklist(_rs) {
-        _grantRole(MANAGER_ROLE, address(this));
+    constructor(IExecutor _executor) {
+        X = _executor;
+        _grantRole(DEFAULT_ADMIN_ROLE, X.globalSettings().governance());
     }
 
     function disableRegistrar(address registrar) external onlyAdmin {
@@ -32,7 +40,7 @@ contract RegistryRegistrar is Authorizer, HasRSBlacklist, IRegistryRegistrar {
     }
 
     function enableRegistrar(address registrar) external onlyAdmin {
-        registrarSet.remove(registrar);
+        registrarSet.add(registrar);
     }
 
     function revertIfNotRegistrar(address account) public view {
@@ -41,7 +49,7 @@ contract RegistryRegistrar is Authorizer, HasRSBlacklist, IRegistryRegistrar {
         }
     }
 
-    function becomeRegistrar() external blacklisted {
+    function becomeRegistrar() external blacklisted(X, msg.sender) {
         if (!registrarSet.getContains(msg.sender)) {
             registrarSet.add(msg.sender);
             emit BecomeRegistrar(msg.sender);
@@ -52,7 +60,7 @@ contract RegistryRegistrar is Authorizer, HasRSBlacklist, IRegistryRegistrar {
 
     function setRegistrarMetadataIpfsCid(
         string calldata ipfsCID
-    ) external onlyRegistrar blacklisted {
+    ) external onlyRegistrar blacklisted(X, msg.sender) {
         registrarMetadataIpfsCID[msg.sender] = ipfsCID;
     }
 }

@@ -6,9 +6,6 @@ import {IBooster} from "../interfaces/IBooster.sol";
 import {DatastoreEntityERC20} from "../datastores/DatastoreEntityERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IEntity} from "../interfaces/IEntity.sol";
-import {ILocation} from "../interfaces/ILocation.sol";
-import {HasRegionSettings} from "../utils/HasRegionSettings.sol";
-
 contract BoosterIERC20Bal is IBooster {
     IERC20 public immutable token;
     DatastoreEntityERC20 public immutable datastoreEntityERC20;
@@ -26,7 +23,7 @@ contract BoosterIERC20Bal is IBooster {
     }
 
     function getBoost(
-        ILocation,
+        uint256,
         IEntity entity,
         uint256 entityId
     ) external view returns (uint256 boost) {

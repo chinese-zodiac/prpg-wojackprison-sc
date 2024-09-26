@@ -2,12 +2,12 @@
 // Authored by Plastic Digits
 pragma solidity ^0.8.23;
 
-import {Executor} from "../Executor.sol";
+import {IExecutor} from "../interfaces/IExecutor.sol";
 
 contract ModifierOnlyExecutor {
-    error SenderNotExecutor(account sender, Executor executor);
+    error SenderNotExecutor(address sender, IExecutor executor);
 
-    modifier onlyExecutor(Executor x) {
+    modifier onlyExecutor(IExecutor x) {
         if (msg.sender != address(x)) {
             revert SenderNotExecutor(msg.sender, x);
         }

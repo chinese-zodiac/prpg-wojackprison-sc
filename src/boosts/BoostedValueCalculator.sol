@@ -3,24 +3,17 @@
 pragma solidity ^0.8.23;
 import {IBooster} from "../interfaces/IBooster.sol";
 import {IEntity} from "../interfaces/IEntity.sol";
-import {ILocation} from "../interfaces/ILocation.sol";
-import {EnumerableSetAccessControlViewableBytes32} from "../utils/EnumerableSetAccessControlViewableBytes32.sol";
-import {EnumerableSetAccessControlViewableAddress} from "../utils/EnumerableSetAccessControlViewableAddress.sol";
-import {Authorizer} from "../Authorizer.sol";
+import {EACSetBytes32} from "../utils/EACSetBytes32.sol";
+import {EACSetAddress} from "../utils/EACSetAddress.sol";
 import {ManagerRole} from "../roles/ManagerRole.sol";
+import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 
 //WARNING: Setting too many IBooster for a keyHash could make the gas cost explode
-contract BoostedValueCalculator is ManagerRole, Authorizer {
-    mapping(bytes32 keyHash => EnumerableSetAccessControlViewableAddress set) boosterSet;
+contract BoostedValueCalculator is ManagerRole, AccessControlEnumerable {
+    mapping(bytes32 keyHash => EACSetAddress set) boosterSet;
 
-    event SetBoostersMulSet(
-        bytes32 keyHash,
-        EnumerableSetAccessControlViewableAddress set
-    );
-    event SetBoostersMulAdd(
-        bytes32 keyHash,
-        EnumerableSetAccessControlViewableAddress set
-    );
+    event SetBoostersMulSet(bytes32 keyHash, EACSetAddress set);
+    event SetBoostersMulAdd(bytes32 keyHash, EACSetAddress set);
 
     constructor(address governance, address manager) {
         _grantRole(DEFAULT_ADMIN_ROLE, governance);
@@ -28,31 +21,39 @@ contract BoostedValueCalculator is ManagerRole, Authorizer {
     }
 
     function getBoosterAccSum(
-        ILocation at,
+        uint256 atLocId,
         bytes32 keyHash,
         IEntity entity,
         uint256 entityId
     ) external view returns (uint256 basePower_) {
-        EnumerableSetAccessControlViewableAddress set = boosterSet[keyHash];
+        EACSetAddress set = boosterSet[keyHash];
         uint256 length = set.getLength();
         for (uint i; i < length; i++) {
-            basePower_ += IBooster(set.getAt(i)).getBoost(at, entity, entityId);
+            basePower_ += IBooster(set.getAt(i)).getBoost(
+                atLocId,
+                entity,
+                entityId
+            );
         }
     }
 
     function getBoosterAccMul(
-        ILocation at,
+        uint256 atLocId,
         bytes32 keyHash,
         IEntity entity,
         uint256 entityId
     ) external view returns (uint256 basePower_) {
-        EnumerableSetAccessControlViewableAddress set = boosterSet[keyHash];
+        EACSetAddress set = boosterSet[keyHash];
         uint256 length = set.getLength();
         basePower_ = 10_000;
         for (uint i; i < length; i++) {
             basePower_ =
                 (basePower_ *
-                    IBooster(set.getAt(i)).getBoost(at, entity, entityId)) /
+                    IBooster(set.getAt(i)).getBoost(
+                        atLocId,
+                        entity,
+                        entityId
+                    )) /
                 10_000;
         }
     }
