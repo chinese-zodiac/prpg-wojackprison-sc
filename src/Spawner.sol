@@ -22,13 +22,15 @@ contract Spawner is ModifierBlacklisted, ReentrancyGuard, ISpawner {
     IExecutor internal immutable X;
     IEntity internal immutable ADMIN;
 
+    error OnlyAdminCharCanSpawnAtLoc0();
+
     constructor(IExecutor _executor, IEntity _adminCharacter) {
         X = _executor;
         ADMIN = _adminCharacter;
     }
 
     function spawn(
-        uint256 _locationID,
+        uint256 _locationID, //For spawning admin, use _locationID == 0
         IEntity _entity,
         address _receiver
     )
@@ -37,6 +39,9 @@ contract Spawner is ModifierBlacklisted, ReentrancyGuard, ISpawner {
         blacklisted(X, msg.sender)
         blacklisted(X, _receiver)
     {
+        if (_locationID == 0 && _entity != ADMIN) {
+            revert OnlyAdminCharCanSpawnAtLoc0();
+        }
         uint256 spawnLoc = _locationID;
         RegistryDatastore rDS = RegistryDatastore(
             X.globalSettings().registries(REGISTRY_DATASTORE)

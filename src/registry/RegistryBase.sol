@@ -23,6 +23,7 @@ contract RegistryBase is AccessControlEnumerable, ModifierBlacklisted {
     error NotRegistered(IKey entry);
     error EntryLacksKey(IKey entry);
     error EntryKeyAlreadyRegistered(IKey key);
+    error KeyDoesNotExist(bytes32 key);
 
     constructor(IExecutor _executor) {
         X = _executor;
@@ -33,6 +34,12 @@ contract RegistryBase is AccessControlEnumerable, ModifierBlacklisted {
         IRegistryRegistrar(X.globalSettings().registries(REGISTRY_REGISTRAR))
             .revertIfNotRegistrar(msg.sender);
         _;
+    }
+
+    function revertIfKeyDoesNotExist(bytes32 _key) external view {
+        if (address(entries[_key]) == address(0x0)) {
+            revert KeyDoesNotExist(_key);
+        }
     }
 
     function addEntry(

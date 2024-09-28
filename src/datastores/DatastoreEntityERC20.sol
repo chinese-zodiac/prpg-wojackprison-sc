@@ -5,37 +5,23 @@ import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {DatastoreEntityLocation} from "./DatastoreEntityLocation.sol";
-import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
-import {ModifierOnlyExecutor} from "../utils/ModifierOnlyExecutor.sol";
-import {ModifierBlacklisted} from "../utils/ModifierBlacklisted.sol";
-import {AccessRoleAdmin} from "../roles/AccessRoleAdmin.sol";
 import {EACSetAddress} from "../utils/EACSetAddress.sol";
-import {IKey} from "../interfaces/IKey.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Executor} from "../Executor.sol";
+import {IExecutor} from "../interfaces/IExecutor.sol";
+import {DatastoreBase} from "./DatastoreBase.sol";
 
 //Permisionless EntityERC20Datastore.
 //Deposit/withdraw/transfer tokens that are stored to a particular entity
 //deposit/withdraw/transfers are restricted to the entity's current location.
-contract DatastoreEntityERC20 is
-    ReentrancyGuard,
-    ModifierOnlyExecutor,
-    ModifierBlacklisted,
-    AccessRoleAdmin,
-    IKey
-{
+contract DatastoreEntityERC20 is DatastoreBase {
     bytes32 public constant KEY = keccak256("DATASTORE_ENTITY_ERC20");
     bytes32 public constant DATASTORE_ENTITY_LOCATION =
         keccak256("DATASTORE_ENTITY_LOCATION");
     using SafeERC20 for IERC20;
 
-    Executor internal immutable X;
-
-    mapping(IERC721 entity => mapping(uint256 entityId => mapping(IERC20 token => uint256 shares)))
+    mapping(IEntity entity => mapping(uint256 entityId => mapping(IERC20 token => uint256 shares)))
         public entityStoredERC20Shares;
 
-    mapping(IERC721 entity => mapping(uint256 entityId => EACSetAddress tokens))
+    mapping(IEntity entity => mapping(uint256 entityId => EACSetAddress tokens))
         public entityStoredTokens;
 
     //Neccessary for rebasing, tax, liquid staking, or other tokens
@@ -71,22 +57,14 @@ contract DatastoreEntityERC20 is
         uint256 tokenWad
     );
 
-    constructor(Executor _executor) {
-        X = _executor;
-        _grantRole(DEFAULT_ADMIN_ROLE, X.globalSettings().governance());
-    }
+    constructor(IExecutor _executor) DatastoreBase(_executor) {}
 
     function deposit(
         IEntity _entity,
         uint256 _entityId,
         IERC20 _token,
         uint256 _wad
-    )
-        external
-        nonReentrant
-        onlyExecutor(X)
-        blacklistedEntity(X, _entity, _entityId)
-    {
+    ) external onlyExecutor(X) blacklistedEntity(X, _entity, _entityId) {
         if (_wad == 0) return;
         uint256 expectedShares = convertTokensToShares(_token, _wad);
         uint256 initialTokens = _token.balanceOf(address(this));
@@ -105,12 +83,7 @@ contract DatastoreEntityERC20 is
         IERC20 _token,
         uint256 _wad,
         address _receiver
-    )
-        external
-        nonReentrant
-        onlyExecutor(X)
-        blacklistedEntity(X, _entity, _entityId)
-    {
+    ) external onlyExecutor(X) blacklistedEntity(X, _entity, _entityId) {
         if (_wad == 0) return;
         uint256 shares = convertTokensToShares(_token, _wad);
         entityStoredERC20Shares[_entity][_entityId][_token] -= shares;
@@ -128,7 +101,6 @@ contract DatastoreEntityERC20 is
         uint256 _wad
     )
         external
-        nonReentrant
         onlyExecutor(X)
         blacklistedEntity(X, _fromEntity, _fromEntityId)
         blacklistedEntity(X, _toEntity, _toEntityId)
@@ -162,12 +134,7 @@ contract DatastoreEntityERC20 is
         uint256 _entityId,
         ERC20Burnable _token,
         uint256 _wad
-    )
-        external
-        nonReentrant
-        onlyExecutor(X)
-        blacklistedEntity(X, _entity, _entityId)
-    {
+    ) external onlyExecutor(X) blacklistedEntity(X, _entity, _entityId) {
         if (_wad == 0) return;
         uint256 shares = convertTokensToShares(_token, _wad);
         entityStoredERC20Shares[_entity][_entityId][_token] -= shares;
@@ -201,9 +168,7 @@ contract DatastoreEntityERC20 is
     }
 
     //Escape hatch for emergency use
-    function recoverERC20(
-        address tokenAddress
-    ) external nonReentrant onlyAdmin {
+    function recoverERC20(address tokenAddress) external onlyAdmin {
         IERC20(tokenAddress).safeTransfer(
             _msgSender(),
             IERC20(tokenAddress).balanceOf(address(this))

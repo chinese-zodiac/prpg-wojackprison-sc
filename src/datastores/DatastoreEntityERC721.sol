@@ -7,30 +7,17 @@ import {IEntity} from "../interfaces/IEntity.sol";
 import {DatastoreEntityLocation} from "./DatastoreEntityLocation.sol";
 import {EACSetUint256} from "../utils/EACSetUint256.sol";
 import {EACSetAddress} from "../utils/EACSetAddress.sol";
-import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
-import {ModifierOnlyExecutor} from "../utils/ModifierOnlyExecutor.sol";
-import {ModifierBlacklisted} from "../utils/ModifierBlacklisted.sol";
-import {AccessRoleAdmin} from "../roles/AccessRoleAdmin.sol";
-import {IKey} from "../interfaces/IKey.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Executor} from "../Executor.sol";
+import {IExecutor} from "../interfaces/IExecutor.sol";
+import {DatastoreBase} from "./DatastoreBase.sol";
 
 //Permisionless EntityStoreERC721
 //Deposit/withdraw/transfer nfts that are stored to a particular entity
 //deposit/withdraw/transfers are restricted to the entity's current location.
-contract DatastoreEntityERC721 is
-    ReentrancyGuard,
-    ModifierOnlyExecutor,
-    ModifierBlacklisted,
-    AccessRoleAdmin,
-    IKey
-{
+contract DatastoreEntityERC721 is DatastoreBase {
     bytes32 public constant KEY = keccak256("DATASTORE_ENTITY_ERC721");
     bytes32 public constant DATASTORE_ENTITY_LOCATION =
         keccak256("DATASTORE_ENTITY_LOCATION");
     using EnumerableSet for EnumerableSet.UintSet;
-
-    Executor internal immutable X;
 
     mapping(IEntity entity => mapping(uint256 entityId => mapping(IERC721 nft => EACSetUint256 nftIdSet)))
         public entityStoredERC721Ids;
@@ -55,22 +42,14 @@ contract DatastoreEntityERC721 is
     );
     event Burn(IEntity entity, uint256 entityId, IERC721 nft, uint256 nftId);
 
-    constructor(Executor _executor) {
-        X = _executor;
-        _grantRole(DEFAULT_ADMIN_ROLE, X.globalSettings().governance());
-    }
+    constructor(IExecutor _executor) DatastoreBase(_executor) {}
 
     function deposit(
         IEntity _entity,
         uint256 _entityId,
         IERC721 _nft,
         uint256[] calldata _nftIds
-    )
-        external
-        nonReentrant
-        onlyExecutor(X)
-        blacklistedEntity(X, _entity, _entityId)
-    {
+    ) external onlyExecutor(X) blacklistedEntity(X, _entity, _entityId) {
         updateSets(_entity, _entityId, _nft);
         for (uint i; i < _nftIds.length; i++) {
             _nft.transferFrom(msg.sender, address(this), _nftIds[i]);
@@ -85,12 +64,7 @@ contract DatastoreEntityERC721 is
         IERC721 _nft,
         uint256[] calldata _nftIds,
         address _receiver
-    )
-        external
-        nonReentrant
-        onlyExecutor(X)
-        blacklistedEntity(X, _entity, _entityId)
-    {
+    ) external onlyExecutor(X) blacklistedEntity(X, _entity, _entityId) {
         for (uint i; i < _nftIds.length; i++) {
             _nft.transferFrom(address(this), _receiver, _nftIds[i]);
             entityStoredERC721Ids[_entity][_entityId][_nft].remove(_nftIds[i]);
@@ -108,7 +82,6 @@ contract DatastoreEntityERC721 is
         uint256[] calldata _nftIds
     )
         external
-        nonReentrant
         onlyExecutor(X)
         blacklistedEntity(X, _fromEntity, _fromEntityId)
         blacklistedEntity(X, _toEntity, _toEntityId)
@@ -144,12 +117,7 @@ contract DatastoreEntityERC721 is
         uint256 _entityId,
         ERC721Burnable _nft,
         uint256[] calldata _nftIds
-    )
-        external
-        nonReentrant
-        onlyExecutor(X)
-        blacklistedEntity(X, _entity, _entityId)
-    {
+    ) external onlyExecutor(X) blacklistedEntity(X, _entity, _entityId) {
         for (uint i; i < _nftIds.length; i++) {
             _nft.burn(_nftIds[i]);
             entityStoredERC721Ids[_entity][_entityId][_nft].remove(_nftIds[i]);
@@ -195,7 +163,7 @@ contract DatastoreEntityERC721 is
     function recoverERC721(
         IERC721 _nft,
         uint256[] calldata _nftIds
-    ) external nonReentrant onlyAdmin {
+    ) external onlyAdmin {
         for (uint i; i < _nftIds.length; i++) {
             _nft.transferFrom(address(this), msg.sender, _nftIds[i]);
         }

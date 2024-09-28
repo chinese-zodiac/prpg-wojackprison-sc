@@ -9,6 +9,7 @@ import {ModifierBlacklisted} from "../utils/ModifierBlacklisted.sol";
 import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import {IExecutor} from "../interfaces/IExecutor.sol";
 import {ISpawner} from "../interfaces/ISpawner.sol";
+import {DatastoreBase} from "./DatastoreBase.sol";
 
 //Permissionless Datastore.
 //It allows ONLY the Entity's current Location to move an Entity to a new Location.
@@ -18,15 +19,9 @@ import {ISpawner} from "../interfaces/ISpawner.sol";
 //in which case your game will be compatible with an existing gameworld, or
 //you will need to spawn your own entities to buid a seperate gameworld.
 //Stores data related to movement between locations
-contract DatastoreEntityLocation is
-    AccessControlEnumerable,
-    ModifierBlacklisted,
-    ModifierOnlyExecutor,
-    ModifierOnlySpawner
-{
+contract DatastoreEntityLocation is DatastoreBase, ModifierOnlySpawner {
     bytes32 public constant KEY = keccak256("DATASTORE_ENTITY_LOCATION");
 
-    IExecutor internal immutable X;
     ISpawner internal immutable S;
     IEntity public immutable ADMIN_CHARACTER;
 
@@ -55,10 +50,8 @@ contract DatastoreEntityLocation is
         IExecutor _executor,
         ISpawner _spawner,
         IEntity _adminCharacter
-    ) {
-        X = _executor;
+    ) DatastoreBase(_executor) {
         S = _spawner;
-        _grantRole(DEFAULT_ADMIN_ROLE, X.globalSettings().governance());
         ADMIN_CHARACTER = _adminCharacter;
     }
 
@@ -87,10 +80,10 @@ contract DatastoreEntityLocation is
         uint256 _entityId,
         uint256 _locationId
     ) external onlySpawner(S) blacklistedEntity(X, _entity, _entityId) {
-        if (entityLocation[_entity][_entityId] != 0) {
-            revert AlreadySpawned(_entity, _entityId);
-        }
         if (_entity != ADMIN_CHARACTER) {
+            if (entityLocation[_entity][_entityId] != 0) {
+                revert AlreadySpawned(_entity, _entityId);
+            }
             _entity.spawnSet().revertIfNotInSet(_locationId);
         }
         _add(_entity, _entityId, _locationId);

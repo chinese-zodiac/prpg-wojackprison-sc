@@ -1,47 +1,31 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.23;
 import {IEntity} from "../interfaces/IEntity.sol";
-import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
-import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import {Executor} from "../Executor.sol";
 import {DatastoreEntityLocation} from "./DatastoreEntityLocation.sol";
 import {EACSetUint256} from "../utils/EACSetUint256.sol";
 import {EACSetAddress} from "../utils/EACSetAddress.sol";
 import {EACSetBytes32} from "../utils/EACSetBytes32.sol";
-import {IKey} from "../interfaces/IKey.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {AdminCharacter} from "../AdminCharacter.sol";
-import {ModifierOnlyExecutor} from "../utils/ModifierOnlyExecutor.sol";
 import {ModifierOnlySpawner} from "../utils/ModifierOnlySpawner.sol";
-import {ModifierBlacklisted} from "../utils/ModifierBlacklisted.sol";
 import {IExecutor} from "../interfaces/IExecutor.sol";
 import {ISpawner} from "../interfaces/ISpawner.sol";
+import {DatastoreBase} from "./DatastoreBase.sol";
 //Stores a Lock for an Action.
 //Action calls Lock to set an Unlock Action key,
 //Then when the Action that has the unlock action key  is called, it must call unlock.
 contract DatastoreLocationEntityPermissions is
-    ReentrancyGuard,
-    ModifierBlacklisted,
-    ModifierOnlyExecutor,
-    ModifierOnlySpawner,
-    AccessControlEnumerable,
-    IKey
+    DatastoreBase,
+    ModifierOnlySpawner
 {
     bytes32 public constant KEY =
         keccak256("DATASTORE_LOCATION_ENTITY_PERMISSIONS");
     bytes32 internal constant DATASTORE_ENTITY_LOCATION =
         keccak256("DATASTORE_ENTITY_LOCATION");
     bytes32 internal constant PERMISSION_DEFAULT_ADMIN_ENTITY = bytes32(0x0);
+    bytes32 internal constant PERMISSION_SET_ACTION =
+        bytes32("PERMISSION_SET_ACTION");
 
-    IExecutor internal immutable X;
     ISpawner internal immutable S;
-
-    error OnlyAdminCharacter(address sender);
-
-    using SafeERC20 for IERC20;
 
     mapping(uint256 locID => mapping(bytes32 permissionKey => EACSetAddress entities))
         public locationPermissionedEntitiesSet;
@@ -77,15 +61,11 @@ contract DatastoreLocationEntityPermissions is
         uint256 _entityId
     );
 
-    constructor(IExecutor _executor, ISpawner _spawner) {
-        X = _executor;
+    constructor(
+        IExecutor _executor,
+        ISpawner _spawner
+    ) DatastoreBase(_executor) {
         S = _spawner;
-        _grantRole(DEFAULT_ADMIN_ROLE, X.globalSettings().governance());
-
-        //TODO: Spawn admin 0
-        //Admin entity 0 administrates location 0
-        //location 0 is used to spawn administrators for new locations
-        // with ACTION_SPAWN_ADMIN
     }
 
     //Special logic for admins to bootstrap permissioning
@@ -94,7 +74,9 @@ contract DatastoreLocationEntityPermissions is
         uint256 _entityID
     ) public onlySpawner(S) {
         //adminID and locationID are the same
+
         uint256 locID = _entityID;
+        //manage permissions
         updateLocationPermissionKeySets(
             locID,
             PERMISSION_DEFAULT_ADMIN_ENTITY,
@@ -106,6 +88,14 @@ contract DatastoreLocationEntityPermissions is
         locationPermissionedEntityIdsSet[locID][
             PERMISSION_DEFAULT_ADMIN_ENTITY
         ][_entity].add(_entityID);
+        //manage actions
+        updateLocationPermissionKeySets(locID, PERMISSION_SET_ACTION, _entity);
+        locationPermissionKeys[locID].add(PERMISSION_SET_ACTION);
+        locationPermissionedEntitiesSet[locID][PERMISSION_SET_ACTION].add(
+            address(_entity)
+        );
+        locationPermissionedEntityIdsSet[locID][PERMISSION_SET_ACTION][_entity]
+            .add(_entityID);
     }
 
     function revertIfEntityAllLacksPermission(

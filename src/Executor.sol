@@ -10,6 +10,8 @@ import {GlobalSettings} from "./GlobalSettings.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {DatastoreLocationEntityPermissions} from "./datastores/DatastoreLocationEntityPermissions.sol";
 import {DatastoreEntityLocation} from "./datastores/DatastoreEntityLocation.sol";
+import {DatastoreLocationActions} from "./datastores/DatastoreLocationActions.sol";
+import {DatastoreEntityActionLock} from "./datastores/DatastoreEntityActionLock.sol";
 import {RegistryDatastore} from "./registry/RegistryDatastore.sol";
 import {RegistryAction} from "./registry/RegistryAction.sol";
 
@@ -25,6 +27,8 @@ contract Executor is
         keccak256("DATASTORE_LOCATION_ACTIONS");
     bytes32 internal constant DATASTORE_ENTITY_LOCATION =
         keccak256("DATASTORE_ENTITY_LOCATION");
+    bytes32 internal constant DATASTORE_ENTITY_ACTION_LOCK =
+        keccak256("DATASTORE_ENTITY_ACTION_LOCK");
     bytes32 internal constant REGISTRY_DATASTORE =
         keccak256("REGISTRY_DATASTORE");
     bytes32 internal constant REGISTRY_ACTION = keccak256("REGISTRY_ACTION");
@@ -66,18 +70,18 @@ contract Executor is
         RegistryDatastore rDS = RegistryDatastore(
             globalSettings.registries(REGISTRY_DATASTORE)
         );
+        uint256 locID = DatastoreEntityLocation(
+            address(rDS.entries(DATASTORE_ENTITY_LOCATION))
+        ).entityLocation(_entity, _entityID);
         DatastoreLocationEntityPermissions(
             address(rDS.entries(DATASTORE_LOCATION_ENTITY_PERMISSIONS))
-        ).revertIfEntityLacksPermission(
-                DatastoreEntityLocation(
-                    address(rDS.entries(DATASTORE_ENTITY_LOCATION))
-                ).entityLocation(_entity, _entityID),
-                _actionKey,
-                _entity,
-                _entityID
-            );
-        //TODO: Revert if action is not in entity location's DATASTORE_LOCATION_ACTIONS
-        //TODO: Revert if action locked
+        ).revertIfEntityLacksPermission(locID, _actionKey, _entity, _entityID);
+        DatastoreLocationActions(
+            address(rDS.entries(DATASTORE_LOCATION_ACTIONS))
+        ).revertIfActionNotAtLocation(locID, _actionKey);
+        DatastoreEntityActionLock(
+            address(rDS.entries(DATASTORE_ENTITY_ACTION_LOCK))
+        ).revertIfIsLocked(_entity, _entityID, _actionKey);
         (address[] memory callees, bytes[] memory encodedCalls) = IAction(
             address(
                 RegistryAction(globalSettings.registries(REGISTRY_ACTION))
