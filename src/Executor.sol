@@ -47,6 +47,12 @@ contract Executor is
     error InvalidAction(IAction ac);
     error FailedCall(address callee, bytes encodedCall);
     error InvalidExecuteReturn();
+    error CallerNotEntityOwner(
+        address caller,
+        address owner,
+        IEntity entity,
+        uint256 entityID
+    );
 
     constructor(GlobalSettings _globalSettings) {
         globalSettings = _globalSettings;
@@ -67,6 +73,12 @@ contract Executor is
         blacklisted(this, msg.sender)
         blacklistedEntity(this, _entity, _entityID)
     {
+        address owner = _entity.ownerOf(_entityID);
+        if (
+            msg.sender != owner && !_entity.isApprovedForAll(owner, msg.sender)
+        ) {
+            revert CallerNotEntityOwner(msg.sender, owner, _entity, _entityID);
+        }
         RegistryDatastore rDS = RegistryDatastore(
             globalSettings.registries(REGISTRY_DATASTORE)
         );

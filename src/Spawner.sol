@@ -58,6 +58,7 @@ contract Spawner is ModifierBlacklisted, ReentrancyGuard, ISpawner {
             dsLEP.grantAdminCharPermissions(_entity, entityID);
             //Admins are always spawned at a new location equal to their ID
             spawnLoc = entityID;
+            //TODO: Add location to registry
         } else {
             // check permissions for non-admins
             dsLEP.revertIfEntityAllLacksPermission(
@@ -70,5 +71,7 @@ contract Spawner is ModifierBlacklisted, ReentrancyGuard, ISpawner {
         //Spawn to location
         DatastoreEntityLocation(address(rDS.entries(DATASTORE_ENTITY_LOCATION)))
             .spawn(_entity, entityID, spawnLoc);
+
+        if (_entity != ADMIN) {}
     }
 }

@@ -206,13 +206,14 @@ contract DatastoreLocationEntityPermissions is
         bytes32 _permissionKey,
         IEntity _entity
     ) public onlyExecutor(X) {
+        //TODO: Fix location to be fetched from managerEntity
+        updateLocationPermissionKeySets(_location, _permissionKey, _entity);
         revertIfEntityLacksPermissionManager(
             _location,
             _permissionKey,
             _managerEntity,
             _managerEntityId
         );
-        updateLocationPermissionKeySets(_location, _permissionKey, _entity);
         EACSetBytes32 lpkSet = locationPermissionKeys[_location];
         EACSetAddress lpeSet = locationPermissionedEntitiesSet[_location][
             _permissionKey
@@ -233,6 +234,7 @@ contract DatastoreLocationEntityPermissions is
         IEntity _entity,
         uint256[] memory _entityIds
     ) public onlyExecutor(X) {
+        //TODO: Fix location to be fetched from managerEntity
         revertIfEntityLacksPermissionManager(
             _location,
             _permissionKey,
@@ -261,6 +263,7 @@ contract DatastoreLocationEntityPermissions is
         bytes32 _permissionKey,
         IEntity _entity
     ) external onlyExecutor(X) {
+        //TODO: Fix location to be fetched from managerEntity
         revertIfEntityLacksPermissionManager(
             _location,
             _permissionKey,
@@ -280,6 +283,7 @@ contract DatastoreLocationEntityPermissions is
         IEntity _entity,
         uint256[] calldata _entityIds
     ) external onlyExecutor(X) {
+        //TODO: Fix location to be fetched from managerEntity
         revertIfEntityLacksPermissionManager(
             _location,
             _permissionKey,
@@ -337,5 +341,6 @@ contract DatastoreLocationEntityPermissions is
                 ]
             );
         }
+        //TODO:Add default permission keys
     }
 }

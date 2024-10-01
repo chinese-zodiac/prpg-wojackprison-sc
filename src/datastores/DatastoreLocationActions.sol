@@ -30,6 +30,7 @@ contract DatastoreLocationActions is DatastoreBase {
         if (address(actionKeySet[_locID]) == address(0x0)) {
             actionKeySet[_locID] = new EACSetBytes32();
         }
+        //TODO: Add default action keys
     }
 
     function revertIfActionNotAtLocation(

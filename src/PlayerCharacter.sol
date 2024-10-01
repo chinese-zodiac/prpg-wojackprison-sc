@@ -2,10 +2,7 @@
 pragma solidity ^0.8.23;
 
 import {Entity} from "./Entity.sol";
-import {CheapRNG} from "./CheapRNG.sol";
 import {EACSetAddress} from "./utils/EACSetAddress.sol";
-import {EACSetBytes32} from "./utils/EACSetBytes32.sol";
-import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import {IExecutor} from "./interfaces/IExecutor.sol";
 import {ISpawner} from "./interfaces/ISpawner.sol";
 import {ModifierOnlyExecutor} from "./utils/ModifierOnlyExecutor.sol";

@@ -3,7 +3,6 @@ pragma solidity ^0.8.23;
 import {IEntity} from "../interfaces/IEntity.sol";
 import {DatastoreEntityLocation} from "./DatastoreEntityLocation.sol";
 import {DatastoreLocationActions} from "./DatastoreLocationActions.sol";
-import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {DatastoreBase} from "./DatastoreBase.sol";
 import {IExecutor} from "../interfaces/IExecutor.sol";
